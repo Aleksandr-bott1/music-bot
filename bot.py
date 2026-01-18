@@ -4,7 +4,7 @@ import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
 
-TOKEN = "ВСТАВ_СВІЙ_ТОКЕН"
+TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -145,4 +145,5 @@ def send_audio(call):
 # RUN
 # =====================
 bot.infinity_polling(skip_pending=True)
+
 
