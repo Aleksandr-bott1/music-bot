@@ -105,20 +105,20 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # --- TikTok ---
+    # TikTok
     if TIKTOK_REGEX.search(text):
         bot.send_message(chat_id, "🎶 Дістаю звук з TikTok...")
         download_audio(chat_id, text)
         return
 
-    bot.send_message(chat_id, "🔍 Шукаю оригінали та ремікси...")
+    bot.send_message(chat_id, "🔍 Шукаю...")
 
     results = []
     used = set()
 
-    # --- ОРИГІНАЛИ ---
+    # ОРИГІНАЛИ (ШВИДКО)
     try:
-        originals = search_soundcloud(text, 5)
+        originals = search_soundcloud(text, 3)
         for title, url in originals:
             key = (title.lower(), url)
             if key in used or is_bad(title):
@@ -130,18 +130,20 @@ def handle_text(message):
     except:
         pass
 
-    # --- РЕМІКСИ ---
+    # РЕМІКСИ (РАННІЙ STOP)
     for tag in REMIX_TAGS:
+        if len(results) >= 15:
+            break
         try:
-            remixes = search_soundcloud(f"{text} {tag}", 5)
+            remixes = search_soundcloud(f"{text} {tag}", 2)
             for title, url in remixes:
+                if len(results) >= 15:
+                    break
                 key = (title.lower(), url)
                 if key in used or is_bad(title):
                     continue
                 used.add(key)
                 results.append(("🔥", title, url))
-                if len(results) >= 15:
-                    break
         except:
             pass
 
@@ -151,8 +153,8 @@ def handle_text(message):
 
     user_results[chat_id] = results
 
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    for i, (icon, title, _) in enumerate(results):keyboard.add(
+    keyboard = InlineKeyboardMarkup(row_width=1)for i, (icon, title, _) in enumerate(results):
+        keyboard.add(
             InlineKeyboardButton(
                 text=f"{icon} {title[:60]}",
                 callback_data=str(i)
@@ -181,8 +183,7 @@ def callback(call):
     download_audio(chat_id, url)
     del user_results[chat_id]
 
-print("🔥 Бот запущений (FULL + FAST + CLEAN)")
+print("🔥 Бот запущений (FAST MODE)")
 bot.infinity_polling(skip_pending=True)
-
 
 
