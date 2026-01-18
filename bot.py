@@ -5,51 +5,62 @@ import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
 
-# =====================
-# 🔐 TOKEN
-# =====================
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 telebot.apihelper.delete_webhook(TOKEN)
 bot = telebot.TeleBot(TOKEN)
 
-# =====================
-# 🖼️ КАРТИНКИ
-# =====================
 IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
-# =====================
-# ⚡ AUDIO (СТАБІЛЬНО)
-# =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
     "noplaylist": True,
-    "socket_timeout": 10,
+    "socket_timeout": 8,
     "outtmpl": "%(id)s.%(ext)s",
 }
 
 # =====================
-# ⚡ СТАБІЛЬНИЙ ПОШУК (10 РЕЗУЛЬТАТІВ)
+# ⚡ МЕГА ШВИДКИЙ ПОШУК (FLAT)
 # =====================
-def search_music(query):
+def fast_search(query):
     try:
         with YoutubeDL({
             "quiet": True,
-            "default_search": "ytsearch10",
+            "default_search": "ytsearch20",
+            "extract_flat": True,
             "noplaylist": True,
-            "socket_timeout": 10,
+            "socket_timeout": 5,
         }) as ydl:
             data = ydl.extract_info(query, download=False)
             return data.get("entries", [])
     except Exception:
         return []
+
+# =====================
+# 🧠 РОЗДІЛЕННЯ: ОРИГІНАЛ / РЕМІКС
+# =====================
+def split_results(results):
+    originals = []
+    remixes = []
+
+    remix_words = [
+        "remix", "slowed", "speed", "sped",
+        "bass", "reverb", "nightcore", "edit"
+    ]
+
+    for r in results:
+        title = (r.get("title") or "").lower()
+        if any(word in title for word in remix_words):
+            remixes.append(r)
+        else:
+            originals.append(r)
+
+    return originals, remixes
 
 # =====================
 # ▶️ START
@@ -59,21 +70,19 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎧 Музичний бот\n\n"
-        "🎵 Напиши назву пісні\n"
+        "🎵 Напиши назву пісні або виконавця\n"
         "🔗 або встав TikTok-посилання\n\n"
-        "🔥 10 результатів\n"
-        "⚡ Стабільно та швидко"
+        "🔥 Спочатку оригінали, потім ремікси"
     )
 
 # =====================
-# 🔎 ОБРОБКА ТЕКСТУ / TikTok
+# 🔎 ПОШУК
 # =====================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # якщо TikTok — прибираємо посилання, лишаємо текст
     if "tiktok.com" in text:
         query = re.sub(r"https?://\S+", "", text).strip()
         if not query:
@@ -81,18 +90,18 @@ def handle_text(message):
     else:
         query = text
 
-    bot.send_message(chat_id, "🔍 Шукаю музику...")
+    bot.send_message(chat_id, "⚡ Швидкий пошук...")
 
-    results = search_music(query)
+    results = fast_search(query)
     if not results:
-        bot.send_message(
-            chat_id,
-            "❌ Не вдалося знайти 😔\n"
-            "Спробуй іншу назву або англійською"
-        )
+        bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    # 🖼️ КАРТИНКА
+    originals, remixes = split_results(results)
+
+    final = originals[:3] + remixes
+    final = final[:10]
+
     bot.send_photo(
         chat_id,
         random.choice(IMAGES),
@@ -101,10 +110,9 @@ def handle_text(message):
 
     keyboard = types.InlineKeyboardMarkup()
 
-    # 🔥 TOP перший, 🔥 🎵 через один
-    for i, r in enumerate(results[:10]):
-        raw_title = r.get("title", "Без назви")
-        title = raw_title.split("(")[0].split("[")[0][:35].strip()
+    for i, r in enumerate(final):
+        title = (r.get("title") or "Без назви")
+        title = title.split("(")[0].split("[")[0][:35].strip()
         video_id = r.get("id")
 
         emoji = "🔥" if i % 2 == 0 else "🎵"
@@ -116,14 +124,10 @@ def handle_text(message):
             )
         )
 
-    bot.send_message(
-        chat_id,
-        "👇 Список пісень:",
-        reply_markup=keyboard
-    )
+    bot.send_message(chat_id, "👇 Список:", reply_markup=keyboard)
 
 # =====================
-# ⬇️ AUDIO
+# ⬇️ АУДІО (ТІЛЬКИ ПІСЛЯ КЛІКУ)
 # =====================
 @bot.callback_query_handler(func=lambda call: True)
 def send_audio(call):
@@ -131,7 +135,7 @@ def send_audio(call):
     video_id, title = call.data.split("|", 1)
     url = f"https://www.youtube.com/watch?v={video_id}"
 
-    bot.send_message(chat_id, "⬇️ Надсилаю трек...")
+    bot.send_message(chat_id, "⬇️ Завантажую трек...")
 
     with YoutubeDL(YDL_AUDIO) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -147,9 +151,6 @@ def send_audio(call):
 
     os.remove(filename)
 
-# =====================
-# 🚀 RUN
-# =====================
 bot.infinity_polling(skip_pending=True)
 
 
