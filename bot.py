@@ -1,7 +1,6 @@
 import os
 import re
 import random
-import time
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
@@ -29,12 +28,18 @@ PHOTOS = [
 ]
 
 # =========================
-# yt-dlp: ШВИДКИЙ ПОШУК
+# yt-dlp: ПОШУК
 # =========================
-YDL_SEARCH = {
+YDL_FAST = {
     "quiet": True,
     "default_search": "ytsearch20",
     "extract_flat": True,
+    "noplaylist": True,
+}
+
+YDL_FALLBACK = {
+    "quiet": True,
+    "default_search": "ytsearch15",
     "noplaylist": True,
 }
 
@@ -63,72 +68,80 @@ def start(message):
     )
 
 # =========================
-# ОСНОВНИЙ ПОШУК
+# ПОШУК МУЗИКИ
 # =========================
 @bot.message_handler(content_types=["text"])
 def search_music(message):
     chat_id = message.chat.id
     user_text = message.text.strip()
 
-    # 1️⃣ очищаємо TikTok / URL
+    # 🔗 чистимо TikTok / URL
     query = re.sub(r"https?://\S+", "", user_text).strip()
     if not query:
         query = user_text
 
-    # 2️⃣ швидкий пошук
+    entries = []
+
+    # 1️⃣ швидкий пошук
     try:
-        with YoutubeDL(YDL_SEARCH) as ydl:
+        with YoutubeDL(YDL_FAST) as ydl:
             data = ydl.extract_info(query, download=False)
             entries = data.get("entries", [])
     except Exception:
-        bot.send_message(chat_id, "❌ Помилка пошуку")
-        return
+        entries = []
+
+    # 2️⃣ fallback, якщо швидкий нічого не дав
+    if not entries:
+        try:
+            with YoutubeDL(YDL_FALLBACK) as ydl:
+                data = ydl.extract_info(query, download=False)
+                entries = data.get("entries", [])
+        except Exception:
+            entries = []
 
     if not entries:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    # 3️⃣ фільтрація
+    # =========================
+    # ФІЛЬТРАЦІЯ
+    # =========================
     seen_ids = set()
     originals = []
     remixes = []
 
     for e in entries:
         vid = e.get("id")
-        title = (e.get("title") or "").lower()
+        title_low = (e.get("title") or "").lower()
 
         if not vid or vid in seen_ids:
             continue
         seen_ids.add(vid)
 
-        if any(word in title for word in REMIX_WORDS):
+        if any(word in title_low for word in REMIX_WORDS):
             remixes.append(e)
         else:
             originals.append(e)
 
-    # 4️⃣ збір фінального списку
     final_tracks = originals[:ORIGINAL_LIMIT]
     final_tracks.extend(remixes)
-
     final_tracks = final_tracks[:MAX_RESULTS]
 
     if not final_tracks:
         bot.send_message(chat_id, "❌ Нічого не підійшло")
         return
 
-    # 5️⃣ фото
+    # =========================
+    # UI
+    # =========================
     bot.send_photo(chat_id, random.choice(PHOTOS))
-
-    # 6️⃣ текст
     bot.send_message(chat_id, "🎶 Обери пісню:")
 
-    # 7️⃣ кнопки
     keyboard = types.InlineKeyboardMarkup(row_width=1)
 
     for index, track in enumerate(final_tracks):
         title = track.get("title", "Без назви")
         title = title.split("(")[0].split("[")[0][:40]
-
         emoji = "🔥" if index % 2 == 0 else "🎵"
 
         keyboard.add(
@@ -149,7 +162,8 @@ def search_music(message):
 # =========================
 @bot.callback_query_handler(func=lambda call: True)
 def send_audio(call):
-    chat_id = call.message.chat.id
+    chat_id = call.message.chat.
+    id
 
     try:
         video_id, title = call.data.split("|", 1)
@@ -164,7 +178,7 @@ def send_audio(call):
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}",
                 download=True
-                )
+            )
             filename = ydl.prepare_filename(info)
     except Exception:
         bot.send_message(chat_id, "❌ Не вдалося завантажити")
@@ -181,5 +195,7 @@ def send_audio(call):
 # RUN
 # =========================
 bot.infinity_polling(skip_pending=True)
+
+
 
 
