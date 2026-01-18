@@ -5,7 +5,7 @@ import re
 import random
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "ТУТ_ТВІЙ_ТОКЕН"
+TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
@@ -174,4 +174,5 @@ bot.infinity_polling(skip_pending=True, none_stop=True)
 
 print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True, none_stop=True)
+
 
