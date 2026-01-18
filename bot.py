@@ -42,31 +42,35 @@ def is_bad(title):
     title = title.lower()
     return any(w in title for w in BAD_WORDS)
 
+def run_yt_dlp(args):
+    return subprocess.check_output(
+        ["python", "-m", "yt_dlp"] + args,
+        text=True,
+        stderr=subprocess.DEVNULL
+    )
+
 def search_soundcloud(query, count):
-    cmd = [
-        "yt-dlp",
+    out = run_yt_dlp([
         "--ignore-errors",
         "--flat-playlist",
         "--print", "title",
         "--print", "webpage_url",
         f"scsearch{count}:{query}"
-    ]
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+    ])
     lines = out.strip().split("\n")
     return list(zip(lines[0::2], lines[1::2]))
 
 def download_audio(chat_id, url):
-    output = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
     try:
         subprocess.run(
             [
-                "yt-dlp",
+                "python", "-m", "yt_dlp",
                 "-x",
                 "--audio-format", "mp3",
                 "--audio-quality", "0",
                 "--no-playlist",
                 "--quiet",
-                "-o", output,
+                "-o", os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
                 url
             ],
             check=True
@@ -83,7 +87,7 @@ def download_audio(chat_id, url):
 
         os.remove(path)
 
-    except:
+    except Exception as e:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
 # ===== START =====
@@ -116,7 +120,7 @@ def handle_text(message):
     results = []
     used = set()
 
-    # ОРИГІНАЛИ (ШВИДКО)
+    # ОРИГІНАЛИ
     try:
         originals = search_soundcloud(text, 3)
         for title, url in originals:
@@ -130,20 +134,20 @@ def handle_text(message):
     except:
         pass
 
-    # РЕМІКСИ (РАННІЙ STOP)
+    # РЕМІКСИ
     for tag in REMIX_TAGS:
         if len(results) >= 15:
             break
         try:
             remixes = search_soundcloud(f"{text} {tag}", 2)
             for title, url in remixes:
-                if len(results) >= 15:
-                    break
                 key = (title.lower(), url)
                 if key in used or is_bad(title):
                     continue
                 used.add(key)
                 results.append(("🔥", title, url))
+                if len(results) >= 15:
+                    break
         except:
             pass
 
@@ -151,17 +155,12 @@ def handle_text(message):
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    user_results[chat_id] = results
-
-   keyboard = InlineKeyboardMarkup(row_width=1)
-
-for i, (icon, title, _) in enumerate(results):
-    keyboard.add(
-        InlineKeyboardButton(
-            text=f"{icon} {title[:60]}",
-            callback_data=str(i)
-        )
-    )
+    user_results[chat_id] = resultskeyboard = InlineKeyboardMarkup(row_width=1)
+    for i, (icon, title, _) in enumerate(results):
+        keyboard.add(
+            InlineKeyboardButton(
+                text=f"{icon} {title[:60]}",
+                callback_data=str(i)
             )
         )
 
@@ -187,8 +186,7 @@ def callback(call):
     download_audio(chat_id, url)
     del user_results[chat_id]
 
-print("🔥 Бот запущений (FAST MODE)")
+print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True)
-
 
 
