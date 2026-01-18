@@ -9,9 +9,9 @@ from yt_dlp import YoutubeDL
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 bot = telebot.TeleBot(TOKEN)
 
-# =============================
+# =========================
 # КОНСТАНТИ
-# =============================
+# =========================
 MAX_RESULTS = 15
 ORIGINAL_LIMIT = 3
 
@@ -27,9 +27,9 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
 ]
 
-# =============================
+# =========================
 # yt-dlp: ПОШУК
-# =============================
+# =========================
 YDL_FAST = {
     "quiet": True,
     "default_search": "ytsearch20",
@@ -43,9 +43,9 @@ YDL_FALLBACK = {
     "noplaylist": True,
 }
 
-# =============================
+# =========================
 # yt-dlp: АУДІО
-# =============================
+# =========================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
@@ -53,37 +53,43 @@ YDL_AUDIO = {
     "outtmpl": "%(id)s.%(ext)s",
 }
 
-# =============================
-# START
-# =============================
+# =========================
+# START (ГАРАНТОВАНА ВІДПОВІДЬ)
+# =========================
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎧 Музичний бот\n\n"
-        "✍️ Напиши назву пісні або виконавця\n"
-        "🔗 Можна вставити TikTok-посилання\n\n"
+        "✅ Я живий!\n\n"
+        "🎧 Напиши назву пісні або виконавця\n"
+        "🔗 Можна вставити TikTok-посилання\n"
         "🔥 1–3 оригінали → ремікси"
     )
 
-# =============================
-# ПОШУК МУЗИКИ
-# =============================
-@bot.message_handler(content_types=["text"])
-def search_music(message):
+# =========================
+# ECHO (ЩОБ НЕ МОВЧАВ НІКОЛИ)
+# =========================
+@bot.message_handler(func=lambda m: True)
+def main_handler(message):
     chat_id = message.chat.id
-    user_text = message.text.strip()
+    text = (message.text or "").strip()
 
-    # очищаємо посилання (TikTok, YouTube і т.д.)
-    query = re.sub(r"https?://\S+", "", user_text).strip()
-    if not query:
-        query = user_text
+    # якщо це не текст — просто підтвердимо
+    if not text:
+        bot.send_message(chat_id, "🟢 Отримав повідомлення")
+        return
 
+    # показуємо, що бот реагує
     bot.send_message(chat_id, "🔍 Шукаю...")
+
+    # чистимо URL (TikTok / YouTube)
+    query = re.sub(r"https?://\S+", "", text).strip()
+    if not query:
+        query = text
 
     entries = []
 
-    # 1️⃣ швидкий пошук
+    # швидкий пошук
     try:
         with YoutubeDL(YDL_FAST) as ydl:
             data = ydl.extract_info(query, download=False)
@@ -91,7 +97,7 @@ def search_music(message):
     except Exception:
         entries = []
 
-    # 2️⃣ fallback
+    # fallback
     if not entries:
         try:
             with YoutubeDL(YDL_FALLBACK) as ydl:
@@ -104,70 +110,56 @@ def search_music(message):
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    # =============================
+    # =========================
     # ФІЛЬТРАЦІЯ
-    # =============================
+    # =========================
     seen = set()
-    originals = []
-    remixes = []
+    originals, remixes = [], []
 
     for e in entries:
         vid = e.get("id")
         title_low = (e.get("title") or "").lower()
-
         if not vid or vid in seen:
             continue
         seen.add(vid)
 
-        if any(word in title_low for word in REMIX_WORDS):
+        if any(w in title_low for w in REMIX_WORDS):
             remixes.append(e)
         else:
             originals.append(e)
 
-    final_tracks = originals[:ORIGINAL_LIMIT]
-    final_tracks.extend(remixes)
+    final_tracks = originals[:ORIGINAL_LIMIT] + remixes
     final_tracks = final_tracks[:MAX_RESULTS]
 
     if not final_tracks:
         bot.send_message(chat_id, "❌ Нічого не підійшло")
         return
 
-    # =============================
+    # =========================
     # UI
-    # =============================
+    # =========================
     bot.send_photo(chat_id, random.choice(PHOTOS))
     bot.send_message(chat_id, "🎶 Обери пісню:")
 
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-
-    for i, track in enumerate(final_tracks):
-        title = track.get("title", "Без назви")
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    for i, t in enumerate(final_tracks):
+        title = t.get("title", "Без назви")
         title = title.split("(")[0].split("[")[0][:40]
         emoji = "🔥" if i % 2 == 0 else "🎵"
+        kb.add(types.InlineKeyboardButton(
+            f"{emoji} {title}",
+            callback_data=f"{t['id']}|{title}"
+        ))
 
-        keyboard.add(
-            types.InlineKeyboardButton(
-                f"{emoji} {title}",
-                callback_data=f"{track['id']}|{title}"
-            )
-        )
+    bot.send_message(chat_id, "👇 Список пісень:", reply_markup=kb)
 
-    bot.send_message(
-        chat_id,
-        "👇 Список пісень:",
-        reply_markup=keyboard
-    )
-
-# =============================
+# =========================
 # ЗАВАНТАЖЕННЯ АУДІО
-# =============================
-@bot.
-callback_query_handler(func=lambda call: True)
-def send_audio(call):
-    chat_id = call.message.chat.id
-
+# =========================
+@bot.callback_query_handler(func=lambda call: True)
+def send_audio(call):chat_id = call.message.chat.id
     try:
-        video_id, title = call.data.split("|", 1)
+        vid, title = call.data.split("|", 1)
     except ValueError:
         bot.send_message(chat_id, "❌ Помилка вибору")
         return
@@ -177,7 +169,7 @@ def send_audio(call):
     try:
         with YoutubeDL(YDL_AUDIO) as ydl:
             info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={video_id}",
+                f"https://www.youtube.com/watch?v={vid}",
                 download=True
             )
             filename = ydl.prepare_filename(info)
@@ -186,15 +178,15 @@ def send_audio(call):
         return
 
     try:
-        with open(filename, "rb") as audio:
-            bot.send_audio(chat_id, audio, title=title)
+        with open(filename, "rb") as f:
+            bot.send_audio(chat_id, f, title=title)
     finally:
         if os.path.exists(filename):
             os.remove(filename)
 
-# =============================
-# RUN
-# =============================
+# =========================
+# RUN (З ПЕРЕЗАПУСКОМ)
+# =========================
 print("BOT STARTED")
 while True:
     try:
@@ -202,8 +194,6 @@ while True:
     except Exception as e:
         print("ERROR:", e)
         time.sleep(5)
-
-
 
 
 
