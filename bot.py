@@ -2,9 +2,7 @@ import telebot
 import subprocess
 import os
 import re
-import random
 import time
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
@@ -15,37 +13,33 @@ DOWNLOAD_DIR = "music"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 active_search = set()
-user_results = {}
-
-PHOTOS = [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-]
-
-BAD_WORDS = ["karaoke", "live", "cover", "instrumental", "acoustic"]
-REMIX_TAGS = ["remix", "phonk", "bass boosted", "sped up"]
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-# ---------- ПОШУК ----------
-def search(query, limit):
-    cmd = [
-        "yt-dlp",
-        "--flat-playlist",
-        "--print", "title",
-        "--print", "webpage_url",
-        f"ytsearch{limit}:{query}"
-    ]
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
-    lines = out.strip().split("\n")
-    return list(zip(lines[0::2], lines[1::2]))
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "🎵 Музичний бот\n\n"
+        "✍️ Напиши назву пісні\n"
+        "🔗 Або встав посилання з TikTok"
+    )
 
-def bad(title):
-    t = title.lower()
-    return any(w in t for w in BAD_WORDS)
+def find_url(query):
+    try:
+        out = subprocess.check_output(
+            [
+                "yt-dlp",
+                "--flat-playlist",
+                "--print", "webpage_url",
+                f"ytsearch1:{query}"
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        return out if out else None
+    except:
+        return None
 
-# ---------- ЗАВАНТАЖЕННЯ ----------
 def download_audio(chat_id, url):
     try:
         for f in os.listdir(DOWNLOAD_DIR):
@@ -54,8 +48,8 @@ def download_audio(chat_id, url):
         subprocess.run(
             [
                 "yt-dlp",
-                "--no-playlist",
                 "-f", "bestaudio",
+                "--no-playlist",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
                 url
             ],
@@ -63,6 +57,7 @@ def download_audio(chat_id, url):
         )
 
         time.sleep(1)
+
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
             bot.send_message(chat_id, "❌ Аудіо не знайдено")
@@ -77,29 +72,17 @@ def download_audio(chat_id, url):
     except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
-# ---------- START ----------
-@bot.message_handler(commands=["start"])
-def start(message):
-    bot.send_message(
-        message.chat.id,
-        "🎶 Музичний бот\n\n"
-        "✍️ Напиши назву пісні\n"
-        "🔗 Або встав TikTok-посилання"
-    )
-
-# ---------- ТЕКСТ ----------
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
     if chat_id in active_search:
-        bot.send_message(chat_id, "⏳ Зачекай, я ще шукаю…")
+        bot.send_message(chat_id, "⏳ Зачекай, я ще працюю…")
         return
 
     active_search.add(chat_id)
 
-    # TikTok
     if TIKTOK_REGEX.search(text):
         bot.send_message(chat_id, "🎶 Дістаю звук з TikTok…")
         download_audio(chat_id, text)
@@ -108,47 +91,14 @@ def handle_text(message):
 
     bot.send_message(chat_id, "🔍 Шукаю…")
 
-    results = []
-    used = set()
-
-    # ОРИГІНАЛИ (1–3)
-    try:
-        for title, url in search(text, 5):
-            if bad(title):
-                continue
-            key = title.lower()
-            if key in used:
-                continue
-            used.add(key)
-            results.append(("🎵", title, url))
-            if len(results) == 3:
-                break
-    except:
-        pass
-
-    # РЕМІКСИ
-    for tag in REMIX_TAGS:
-        try:
-            for title, url in search(f"{text} {tag}", 5):
-                if bad(title):
-                    continue
-                key = title.lower()
-                if key in used:
-                    continue
-                used.add(key)
-                results.append(("🔥", title, url))
-                if len(results) >= 10:
-                    break
-        except:
-            pass
-
-    if not results:
+    url = find_url(text)
+    if not url:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         active_search.remove(chat_id)
         return
 
-    user_results[chat_id] = results
+    download_audio(chat_id, url)
+    active_search.remove(chat_id)
 
-    kb = InlineKeyboardMarkup(row_width=1)
-    for i, (icon, title, _) in enumerate(results):
-        kb.add(InlineKeyboardButton(
+print("BOT STARTED — STABLE")
+bot.infinity_polling(skip_pending=True, none_stop=True)
