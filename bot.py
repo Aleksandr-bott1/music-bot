@@ -92,22 +92,7 @@ def search_music(query):
         final.append((query, query))
 
     return final[:10]
-    def search_soundcloud(query, limit=10):
-    try:
-        output = subprocess.check_output(
-            [
-                "yt-dlp",
-                "--print", "title",
-                "--print", "webpage_url",
-                f"scsearch{limit}:{query}"
-            ],
-            text=True,
-            timeout=8
-        )
-        lines = output.strip().split("\n")
-        return list(zip(lines[0::2], lines[1::2]))
-    except:
-        return []
+    
 
 # ================= ЗАВАНТАЖЕННЯ =================
 def download_audio(chat_id, query):
@@ -205,6 +190,7 @@ def callback(c):
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
