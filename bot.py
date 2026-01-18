@@ -30,23 +30,11 @@ PHOTOS = [
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-
-    kb.add(
-        KeyboardButton("🔍 Пошук музики"),
-        KeyboardButton("🔥 Топ ремікси")
-    )
-    kb.add(
-        KeyboardButton("🎶 TikTok звук"),
-        KeyboardButton("⭐ Популярне сьогодні")
-    )
-
     bot.send_message(
         message.chat.id,
-        "🎵 *Музичний бот*\n\n"
-        "👇 Обери дію:",
-        reply_markup=kb,
-        parse_mode="Markdown"
+        "🎵 Музичний бот\n\n"
+        "✍️ Напиши назву пісні — я знайду mp3"
+    )
     )
 
 # ================= ПОШУК (ДУЖЕ ШВИДКИЙ) =================
@@ -139,7 +127,10 @@ def download_audio(chat_id, query):
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
 # ================= ТЕКСТ =================
-
+@bot.message_handler(func=lambda m: True)
+def handle_text(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
 
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
@@ -197,11 +188,9 @@ def callback(c):
    
 
 print("BOT STARTED — FINAL STABLE VERSION")
-@bot.message_handler(func=lambda m: True)
-def handle_text(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
+
 bot.infinity_polling(skip_pending=True)
+
 
 
 
