@@ -1,37 +1,24 @@
 import os
-import random
-import threading
-import requests
+import re
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
+from flask import Flask, request
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
-# ⛔ ГАРАНТОВАНО ВИМИКАЄМО WEBHOOK
-requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+bot = telebot.TeleBot(TOKEN)
+app = Flask(__name__)
 
-bot = telebot.TeleBot(TOKEN, threaded=False)
-
-# 🔒 БЛОКУВАННЯ (щоб не дублювало)
-LOCK = threading.Lock()
-
-# 🖼️ ФОТО (одне випадкове за запит)
-PHOTOS = [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-]
-
-# 🔎 ПОШУК
+# =====================
+# yt-dlp налаштування
+# =====================
 YDL_SEARCH = {
     "quiet": True,
     "default_search": "ytsearch25",
     "noplaylist": True,
 }
 
-# ⬇️ АУДІО
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
@@ -52,83 +39,82 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎧 Музичний бот\n\n"
-        "✍️ Напиши назву пісні або виконавця\n"
+        "✍️ Напиши назву пісні\n"
+        "🔗 або встав TikTok-посилання\n\n"
         "🔥 1–3 оригінали → ремікси\n"
-        "⚡ Швидко і стабільно"
+        "⚡ Без повторів"
     )
 
 # =====================
-# ПОШУК (ОДИН РАЗ)
+# ПОШУК (1 РАЗ)
 # =====================
 @bot.message_handler(content_types=["text"])
 def search_music(message):
-    if not LOCK.acquire(blocking=False):
-        return  # ⛔ інший воркер вже обробляє
+    chat_id = message.chat.id
+    text = message.text.strip()
+
+    # TikTok → прибираємо URL, лишаємо текст
+    if "tiktok.com" in text:
+        query = re.sub(r"https?://\S+", "", text).strip()
+        if not query:
+            query = "music"
+    else:
+        query = text
+
+    status = bot.send_message(chat_id, "🔍 Шукаю...")
 
     try:
-        chat_id = message.chat.id
-        query = message.text.strip()
-
-        status = bot.send_message(chat_id, "🔍 Шукаю музику…")
-
         with YoutubeDL(YDL_SEARCH) as ydl:
             data = ydl.extract_info(query, download=False)
             entries = data.get("entries", [])
+    except Exception:
+        bot.edit_message_text("❌ Помилка пошуку", chat_id, status.message_id)
+        return
 
-        if not entries:
-            bot.edit_message_text("❌ Нічого не знайшов", chat_id, status.message_id)
-            return
+    if not entries:
+        bot.edit_message_text("❌ Нічого не знайшов", chat_id, status.message_id)
+        return
 
-        # 🧠 прибираємо дублікати + ділимо
-        seen = set()
-        originals, remixes = [], []
+    seen = set()
+    originals, remixes = [], []
 
-        for e in entries:
-            vid = e.get("id")
-            title_low = (e.get("title") or "").lower()
+    for e in entries:
+        vid = e.get("id")
+        title_low = (e.get("title") or "").lower()
 
-            if not vid or vid in seen:
-                continue
-            seen.add(vid)
+        if not vid or vid in seen:
+            continue
+        seen.add(vid)
 
-            if any(w in title_low for w in REMIX_WORDS):
-                remixes.append(e)
-            else:
-                originals.append(e)
+        if any(w in title_low for w in REMIX_WORDS):
+            remixes.append(e)
+        else:
+            originals.append(e)
 
-        final = (originals[:3] + remixes)[:15]
+    final = (originals[:3] + remixes)[:15]
 
-        # 🖼️ ОДНЕ ФОТО
-        bot.send_photo(
-            chat_id,
-            random.choice(PHOTOS),
-            caption="🎶 Обери пісню 👇"
-        )
+    keyboard = types.InlineKeyboardMarkup()
 
-        keyboard = types.InlineKeyboardMarkup()
+    for i, e in enumerate(final):
+        title = e.get("title", "Без назви")
+        title = title.split("(")[0].split("[")[0][:40]
+        vid = e.get("id")
 
-        for i, e in enumerate(final):
-            title = e.get("title", "Без назви")
-            title = title.split("(")[0].split("[")[0][:40]
-            vid = e.get("id")
-            emoji = "🔥" if i % 2 == 0 else "🎵"
+        emoji = "🔥" if i % 2 == 0 else "🎵"
 
-            keyboard.add(
-                types.InlineKeyboardButton(
-                    f"{emoji} {title}",
-                    callback_data=f"{vid}|{title}"
-                )
+        keyboard.add(
+            types.InlineKeyboardButton(
+                f"{emoji} {title}",
+                callback_data=f"{vid}|{title}"
             )
-
-        bot.edit_message_text(
-            "👇 Список пісень:",
-            chat_id,
-            status.message_id,
-            reply_markup=keyboard
         )
 
-    finally:
-        LOCK.release()
+    bot.edit_message_text(
+        "🎶 Обери пісню:",
+        chat_id,
+        status.message_id,
+        reply_markup=keyboard
+    )
 
 # =====================
 # АУДІО
@@ -138,7 +124,7 @@ def send_audio(call):
     chat_id = call.message.chat.id
     vid, title = call.data.split("|", 1)
 
-    bot.send_message(chat_id, "⬇️ Надсилаю трек…")
+    bot.send_message(chat_id, "⬇️ Надсилаю трек...")
 
     with YoutubeDL(YDL_AUDIO) as ydl:
         info = ydl.extract_info(
@@ -153,7 +139,24 @@ def send_audio(call):
     os.remove(filename)
 
 # =====================
+# WEBHOOK
+# =====================
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = telebot.types.Update.de_json(
+        request.stream.read().decode("utf-8")
+    )
+    bot.process_new_updates([update])
+    return "OK", 200
+
+@app.route("/")
+def index():
+    return "Bot is running", 200
+
+# =====================
 # RUN
 # =====================
-bot.infinity_polling(skip_pending=True)
-
+if name == "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{os.environ.get('RAILWAY_STATIC_URL')}/{TOKEN}")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
