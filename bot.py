@@ -30,13 +30,18 @@ BAD_WORDS = [
 REMIX_TAGS = ["remix", "phonk", "bass boosted"]
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-# ===== yt-dlp runner =====
+# ===== yt-dlp runner (трохи швидше) =====
 def run_yt_dlp(args):
     return subprocess.check_output(
-        ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
+        [
+            "python", "-m", "yt_dlp",
+            "--ignore-errors",
+            "--no-warnings",
+            "--socket-timeout", "8",
+        ] + args,
         text=True,
         stderr=subprocess.DEVNULL,
-        timeout=15
+        timeout=12
     )
 
 def is_bad(title):
@@ -45,7 +50,6 @@ def is_bad(title):
 
 def search_music(query, count):
     out = run_yt_dlp([
-        "--ignore-errors",
         "--flat-playlist",
         "--print", "title",
         "--print", "webpage_url",
@@ -67,7 +71,8 @@ def download_audio(chat_id, url):
                 "-o", os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
                 url
             ],
-            check=True
+            check=True,
+            timeout=120
         )
 
         mp3_files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
@@ -103,6 +108,9 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
+    # очищаємо старі результати ТІЛЬКИ перед новим пошуком
+    user_results.pop(chat_id, None)
+
     if TIKTOK_REGEX.search(text):
         bot.send_message(chat_id, "🎶 Дістаю звук з TikTok...")
         download_audio(chat_id, text)
@@ -113,8 +121,9 @@ def handle_text(message):
     results = []
     used = set()
 
+    # 1–3 оригінали
     try:
-        originals = search_music(text, 5)
+        originals = search_music(text, 4)
         for title, url in originals:
             key = (title.lower(), url)
             if key in used or is_bad(title):
@@ -126,11 +135,12 @@ def handle_text(message):
     except:
         pass
 
+    # ремікси до 15
     for tag in REMIX_TAGS:
         if len(results) >= 15:
             break
         try:
-            remixes = search_music(f"{text} {tag}", 5)
+            remixes = search_music(f"{text} {tag}", 4)
             for title, url in remixes:
                 key = (title.lower(), url)
                 if key in used or is_bad(title):
@@ -170,14 +180,13 @@ def callback(call):
     chat_id = call.message.chat.id
     index = int(call.data)
 
-    if chat_id not in user_results:
+    if chat_id not in user_results or index >= len(user_results[chat_id]):
         bot.answer_callback_query(call.id, "❌ Список застарів")
         return
 
     _, _, url = user_results[chat_id][index]
     bot.answer_callback_query(call.id, "⏳ Завантажую...")
     download_audio(chat_id, url)
-    del user_results[chat_id]
 
 print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True, none_stop=True)
