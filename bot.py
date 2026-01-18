@@ -35,7 +35,6 @@ def start(message):
         "🎵 Музичний бот\n\n"
         "✍️ Напиши назву пісні — я знайду mp3"
     )
-    )
 
 # ================= ПОШУК (ДУЖЕ ШВИДКИЙ) =================
 def search_music(query):
@@ -190,6 +189,7 @@ def callback(c):
 print("BOT STARTED — FINAL STABLE VERSION")
 
 bot.infinity_polling(skip_pending=True)
+
 
 
 
