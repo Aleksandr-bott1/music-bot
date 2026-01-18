@@ -1,178 +1,25 @@
 import telebot
-import subprocess
-import os
-import re
-import random
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
 
-DOWNLOAD_DIR = "music"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-user_results = {}
-
-PHOTOS = [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-]
-
-BAD_WORDS = [
-    "karaoke", "live", "cover", "instrumental",
-    "acapella", "acoustic", "concert"
-]
-
-REMIX_TAGS = ["remix", "phonk", "bass boosted"]
-TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
-
-# ---------- ПОШУК ----------
-def search_music(query, limit):
-    cmd = [
-        "yt-dlp",
-        "--flat-playlist",
-        "--print", "title",
-        "--print", "webpage_url",
-        f"ytsearch{limit}:{query}"
-    ]
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
-    lines = out.strip().split("\n")
-    return list(zip(lines[0::2], lines[1::2]))
-
-def is_bad(title):
-    title = title.lower()
-    return any(w in title for w in BAD_WORDS)
-
-# ---------- ЗАВАНТАЖЕННЯ ----------
-def download_audio(chat_id, url):
-    try:
-        subprocess.run(
-            [
-                "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
-                "--no-playlist",
-                "-o", os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
-                url
-            ],
-            check=True
-        )
-
-        mp3_files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
-        if not mp3_files:
-            bot.send_message(chat_id, "❌ Не вдалося завантажити")
-            return
-
-        path = os.path.join(DOWNLOAD_DIR, mp3_files[0])
-        with open(path, "rb") as audio:
-            bot.send_audio(chat_id, audio)
-
-        os.remove(path)
-
-    except Exception as e:
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
-
-# ---------- START ----------
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.send_photo(
+    bot.send_message(
         message.chat.id,
-        random.choice(PHOTOS),
-        caption="🔥 Музичний бот\n\n✍️ Напиши назву пісні або встав TikTok-посилання 🎶"
+        "✅ Бот працює!\n\n"
+        "Напиши будь-який текст — я відповім."
     )
 
-# ---------- ТЕКСТ ----------
-@bot.message_handler(func=lambda m: True)
-def handle_text(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
-
-    user_results.pop(chat_id, None)
-
-    # TikTok
-    if TIKTOK_REGEX.search(text):
-        bot.send_message(chat_id, "🎶 Дістаю звук з TikTok...")
-        download_audio(chat_id, text)
-        return
-
-    bot.send_message(chat_id, "🔍 Шукаю...")
-
-    results = []
-    used = set()
-
-    # ОРИГІНАЛИ
-    try:
-        originals = search_music(text, 5)
-        for title, url in originals:
-            key = title.lower()
-            if key in used or is_bad(title):
-                continue
-            used.add(key)
-            results.append(("🎵", title, url))
-            if len(results) >= 3:
-                break
-    except:
-        pass
-
-    # РЕМІКСИ
-    for tag in REMIX_TAGS:
-        try:
-            remixes = search_music(f"{text} {tag}", 5)
-            for title, url in remixes:
-                key = title.lower()
-                if key in used or is_bad(title):
-                    continue
-                used.add(key)
-                results.append(("🔥", title, url))
-                if len(results) >= 15:
-                    break
-        except:
-            pass
-
-    if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
-        return
-
-    user_results[chat_id] = results
-
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    for i, (icon, title, _) in enumerate(results):
-        keyboard.add(
-            InlineKeyboardButton(
-                text=f"{icon} {title[:60]}",
-                callback_data=str(i)
-            )
-        )
-
-    bot.send_photo(
-        chat_id,
-        random.choice(PHOTOS),
-        caption="🎶 Обери трек:",
-        reply_markup=keyboard
+@bot.message_handler(func=lambda message: True)
+def echo(message):
+    bot.send_message(
+        message.chat.id,
+        f"📩 Ти написав: {message.text}"
     )
 
-# ---------- КНОПКИ ----------
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    chat_id = call.message.chat.id
-    index = int(call.data)
-
-    if chat_id not in user_results:
-        bot.answer_callback_query(call.id, "❌ Список застарів")
-        return
-
-    _, _, url = user_results[chat_id][index]
-    bot.answer_callback_query(call.id, "⏳ Завантажую...")
-    download_audio(chat_id, url)
-
-print("🔥 Бот запущений")
+print("BOT STARTED SUCCESSFULLY")
 bot.infinity_polling(skip_pending=True, none_stop=True)
-
-print("🔥 Бот запущений (STABLE)")
-bot.infinity_polling(skip_pending=True, none_stop=True)
-
 
