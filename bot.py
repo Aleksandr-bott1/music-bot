@@ -44,9 +44,16 @@ def is_bad(title):
 
 def run_yt_dlp(args):
     return subprocess.check_output(
-        ["python", "-m", "yt_dlp"] + args,
+        ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
         text=True,
-        stderr=subprocess.DEVNULL
+        stderr=subprocess.DEVNULL,
+        timeout=15
+    )def run_yt_dlp(args):
+    return subprocess.check_output(
+        ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
+        text=True,
+        stderr=subprocess.DEVNULL,
+        timeout=15
     )
 
 def search_soundcloud(query, count):
@@ -188,5 +195,6 @@ def callback(call):
 
 print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True)
+
 
 
