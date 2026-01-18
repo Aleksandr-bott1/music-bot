@@ -15,6 +15,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
 
+# ===== ФОТО =====
 PHOTOS = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
@@ -22,6 +23,7 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
 ]
 
+# ===== ФІЛЬТРИ =====
 BAD_WORDS = [
     "karaoke", "live", "cover", "instrumental",
     "acapella", "acoustic", "concert"
@@ -36,7 +38,7 @@ REMIX_TAGS = [
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
 
-# ===== yt-dlp runner (STABLE) =====
+# ===== yt-dlp runner (СТАБІЛЬНИЙ) =====
 def run_yt_dlp(args):
     return subprocess.check_output(
         ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
@@ -46,12 +48,8 @@ def run_yt_dlp(args):
     )
 
 
-def is_bad(title):
-    title = title.lower()
-    return any(w in title for w in BAD_WORDS)
-
-
-def search_youtube(query, count):
+# ===== ПОШУК (YouTube) =====
+def search_music(query, count):
     out = run_yt_dlp([
         "--ignore-errors",
         "--flat-playlist",
@@ -63,6 +61,12 @@ def search_youtube(query, count):
     return list(zip(lines[0::2], lines[1::2]))
 
 
+def is_bad(title):
+    title = title.lower()
+    return any(w in title for w in BAD_WORDS)
+
+
+# ===== ЗАВАНТАЖЕННЯ =====
 def download_audio(chat_id, url):
     try:
         subprocess.run(
@@ -108,7 +112,7 @@ def start(message):
     )
 
 
-# ===== MAIN HANDLER =====
+# ===== MAIN =====
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
@@ -125,9 +129,9 @@ def handle_text(message):
     results = []
     used = set()
 
-    # ОРИГІНАЛИ (1–3)
+    # 1–3 ОРИГІНАЛИ
     try:
-        originals = search_soundcloud(text, 3)
+        originals = search_music(text, 5)
         for title, url in originals:
             key = (title.lower(), url)
             if key in used or is_bad(title):
@@ -139,12 +143,12 @@ def handle_text(message):
     except:
         pass
 
-    # РЕМІКСИ (до 15)
+    # 3–15 РЕМІКСИ
     for tag in REMIX_TAGS:
         if len(results) >= 15:
             break
         try:
-            remixes = search_soundcloud(f"{text} {tag}", 2)
+            remixes = search_music(f"{text} {tag}", 5)
             for title, url in remixes:
                 key = (title.lower(), url)
                 if key in used or is_bad(title):
@@ -156,9 +160,10 @@ def handle_text(message):
         except:
             pass
 
-    if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
-        returnuser_results[chat_id] = results
+    if not results:send_message(chat_id, "❌ Нічого не знайшов")
+        return
+
+    user_results[chat_id] = results
 
     keyboard = InlineKeyboardMarkup(row_width=1)
     for i, (icon, title, _) in enumerate(results):
@@ -193,8 +198,7 @@ def callback(call):
     del user_results[chat_id]
 
 
-print("🔥 Бот запущений (STABLE)")
+print("🔥 Бот запущений (FINAL / STABLE)")
 bot.infinity_polling(skip_pending=True)
-
-
-
+        bot.
+            
