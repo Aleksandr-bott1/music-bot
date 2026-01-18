@@ -21,10 +21,11 @@ IMAGES = [
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
+    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
 # =====================
-# ⚡ AUDIO (МАКС СТАБІЛЬНО)
+# ⚡ AUDIO (СТАБІЛЬНО)
 # =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
@@ -35,13 +36,13 @@ YDL_AUDIO = {
 }
 
 # =====================
-# ⚡ СТАБІЛЬНИЙ ПОШУК
+# ⚡ СТАБІЛЬНИЙ ПОШУК (10 РЕЗУЛЬТАТІВ)
 # =====================
 def search_music(query):
     try:
         with YoutubeDL({
             "quiet": True,
-            "default_search": "ytsearch5",
+            "default_search": "ytsearch10",
             "noplaylist": True,
             "socket_timeout": 10,
         }) as ydl:
@@ -59,8 +60,9 @@ def start(message):
         message.chat.id,
         "🎧 Музичний бот\n\n"
         "🎵 Напиши назву пісні\n"
-        "🔗 або просто встав TikTok-посилання\n\n"
-        "⚡ Стабільний пошук без зависань"
+        "🔗 або встав TikTok-посилання\n\n"
+        "🔥 10 результатів\n"
+        "⚡ Стабільно та швидко"
     )
 
 # =====================
@@ -71,7 +73,7 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # якщо TikTok — чистимо текст
+    # якщо TikTok — прибираємо посилання, лишаємо текст
     if "tiktok.com" in text:
         query = re.sub(r"https?://\S+", "", text).strip()
         if not query:
@@ -99,12 +101,13 @@ def handle_text(message):
 
     keyboard = types.InlineKeyboardMarkup()
 
-    for i, r in enumerate(results[:5]):
+    # 🔥 TOP перший, 🔥 🎵 через один
+    for i, r in enumerate(results[:10]):
         raw_title = r.get("title", "Без назви")
         title = raw_title.split("(")[0].split("[")[0][:35].strip()
         video_id = r.get("id")
 
-        emoji = "🔥" if i == 0 else ("🎵" if i % 2 == 0 else "🔥")
+        emoji = "🔥" if i % 2 == 0 else "🎵"
 
         keyboard.add(
             types.InlineKeyboardButton(
@@ -148,4 +151,5 @@ def send_audio(call):
 # 🚀 RUN
 # =====================
 bot.infinity_polling(skip_pending=True)
+
 
