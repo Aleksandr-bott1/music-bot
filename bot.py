@@ -1,200 +1,152 @@
+import telebot
+import subprocess
 import os
 import re
-import random
-import time
-import telebot
-from telebot import types
-from yt_dlp import YoutubeDL
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
+
 bot = telebot.TeleBot(TOKEN)
+bot.remove_webhook()
 
-# =========================
-# КОНСТАНТИ
-# =========================
-MAX_RESULTS = 15
-ORIGINAL_LIMIT = 3
+DOWNLOAD_DIR = "music"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-REMIX_WORDS = [
-    "remix", "slowed", "sped", "speed",
-    "nightcore", "reverb", "edit", "bass"
+user_results = {}
+
+# ===== НАЛАШТУВАННЯ =====
+BAD_WORDS = [
+    "karaoke", "live", "cover", "instrumental",
+    "acapella", "acoustic", "concert"
 ]
 
-PHOTOS = [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
+# ⏩ ЗМЕНШЕНО ДЛЯ ШВИДКОСТІ (але якість лишилась)
+REMIX_TAGS = [
+    "remix",
+    "phonk",
+    "bass boosted"
 ]
 
-# =========================
-# yt-dlp: ПОШУК
-# =========================
-YDL_FAST = {
-    "quiet": True,
-    "default_search": "ytsearch20",
-    "extract_flat": True,
-    "noplaylist": True,
-}
+TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-YDL_FALLBACK = {
-    "quiet": True,
-    "default_search": "ytsearch15",
-    "noplaylist": True,
-}
+# ===== ФУНКЦІЇ =====
+def is_bad(title):
+    title = title.lower()
+    return any(w in title for w in BAD_WORDS)
 
-# =========================
-# yt-dlp: АУДІО
-# =========================
-YDL_AUDIO = {
-    "format": "bestaudio[ext=m4a]/bestaudio",
-    "quiet": True,
-    "noplaylist": True,
-    "outtmpl": "%(id)s.%(ext)s",
-}
+def search_soundcloud(query, count):
+    cmd = [
+        "yt-dlp",
+        "--print", "title",
+        "--print", "webpage_url",
+        f"scsearch{count}:{query}"
+    ]
+    out = subprocess.check_output(cmd, text=True)
+    lines = out.strip().split("\n")
+    return list(zip(lines[0::2], lines[1::2]))
 
-# =========================
-# START (ГАРАНТОВАНА ВІДПОВІДЬ)
-# =========================
-@bot.message_handler(commands=["start"])
+def download_audio(chat_id, url):
+    output = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+    try:
+        subprocess.run(
+            ["yt-dlp", "-x", "--audio-format", "mp3", "-o", output, url],
+            check=True
+        )
+
+        mp3_files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
+        if not mp3_files:
+            bot.send_message(chat_id, "❌ Не вдалося отримати звук")
+            return
+
+        path = os.path.join(DOWNLOAD_DIR, mp3_files[0])
+        with open(path, "rb") as audio:
+            bot.send_audio(chat_id, audio)
+
+        os.remove(path)
+
+    except:
+        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+
+# ===== START =====
+@bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(
         message.chat.id,
-        "✅ Я живий!\n\n"
-        "🎧 Напиши назву пісні або виконавця\n"
-        "🔗 Можна вставити TikTok-посилання\n"
-        "🔥 1–3 оригінали → ремікси"
+        "🔥 Потужний музичний бот\n\n"
+        "✍️ Напиши назву пісні — оригінали + ремікси\n"
+        "🔗 Або встав TikTok-посилання 🎶"
     )
 
-# =========================
-# ECHO (ЩОБ НЕ МОВЧАВ НІКОЛИ)
-# =========================
+# ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
-def main_handler(message):
+def handle_text(message):
     chat_id = message.chat.id
-    text = (message.text or "").strip()
+    text = message.text.strip()
 
-    # якщо це не текст — просто підтвердимо
-    if not text:
-        bot.send_message(chat_id, "🟢 Отримав повідомлення")
+    # --- TikTok ---
+    if TIKTOK_REGEX.search(text):
+        bot.send_message(chat_id, "🎶 Дістаю звук з TikTok...")
+        download_audio(chat_id, text)
         return
 
-    # показуємо, що бот реагує
-    bot.send_message(chat_id, "🔍 Шукаю...")
+    bot.send_message(chat_id, "🔍 Шукаю оригінали та ремікси...")
 
-    # чистимо URL (TikTok / YouTube)
-    query = re.sub(r"https?://\S+", "", text).strip()
-    if not query:
-        query = text
+    results = []
 
-    entries = []
-
-    # швидкий пошук
+    # --- ОРИГІНАЛИ (1–3) ---
     try:
-        with YoutubeDL(YDL_FAST) as ydl:
-            data = ydl.extract_info(query, download=False)
-            entries = data.get("entries", [])
-    except Exception:
-        entries = []
+        originals = search_soundcloud(text, 3)
+        for title, url in originals:
+            if not is_bad(title):
+                results.append(("🎵", title, url))
+    except:
+        pass
 
-    # fallback
-    if not entries:
+    # --- РЕМІКСИ (швидше) ---
+    for tag in REMIX_TAGS:
         try:
-            with YoutubeDL(YDL_FALLBACK) as ydl:
-                data = ydl.extract_info(query, download=False)
-                entries = data.get("entries", [])
-        except Exception:
-            entries = []
+            remixes = search_soundcloud(f"{text} {tag}", 3)
+            for title, url in remixes:
+                if not is_bad(title):
+                    results.append(("🔥", title, url))
+        except:
+            pass
 
-    if not entries:
+    if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    # =========================
-    # ФІЛЬТРАЦІЯ
-    # =========================
-    seen = set()
-    originals, remixes = [], []
+    results = results[:20]
+    user_results[chat_id] = results
 
-    for e in entries:
-        vid = e.get("id")
-        title_low = (e.get("title") or "").lower()
-        if not vid or vid in seen:
-            continue
-        seen.add(vid)
-
-        if any(w in title_low for w in REMIX_WORDS):
-            remixes.append(e)
-        else:
-            originals.append(e)
-
-    final_tracks = originals[:ORIGINAL_LIMIT] + remixes
-    final_tracks = final_tracks[:MAX_RESULTS]
-
-    if not final_tracks:
-        bot.send_message(chat_id, "❌ Нічого не підійшло")
-        return
-
-    # =========================
-    # UI
-    # =========================
-    bot.send_photo(chat_id, random.choice(PHOTOS))
-    bot.send_message(chat_id, "🎶 Обери пісню:")
-
-    kb = types.InlineKeyboardMarkup(row_width=1)
-    for i, t in enumerate(final_tracks):
-        title = t.get("title", "Без назви")
-        title = title.split("(")[0].split("[")[0][:40]
-        emoji = "🔥" if i % 2 == 0 else "🎵"
-        kb.add(types.InlineKeyboardButton(
-            f"{emoji} {title}",
-            callback_data=f"{t['id']}|{title}"
-        ))
-
-    bot.send_message(chat_id, "👇 Список пісень:", reply_markup=kb)
-
-# =========================
-# ЗАВАНТАЖЕННЯ АУДІО
-# =========================
-@bot.callback_query_handler(func=lambda call: True)
-def send_audio(call):chat_id = call.message.chat.id
-    try:
-        vid, title = call.data.split("|", 1)
-    except ValueError:
-        bot.send_message(chat_id, "❌ Помилка вибору")
-        return
-
-    bot.send_message(chat_id, "⬇️ Завантажую трек...")
-
-    try:
-        with YoutubeDL(YDL_AUDIO) as ydl:
-            info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={vid}",
-                download=True
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    for i, (icon, title, _) in enumerate(results):
+        keyboard.add(
+            InlineKeyboardButton(
+                text=f"{icon} {title[:60]}",
+                callback_data=str(i)
             )
-            filename = ydl.prepare_filename(info)
-    except Exception:
-        bot.send_message(chat_id, "❌ Не вдалося завантажити")
+        )
+
+    bot.send_message(chat_id, "🎶 Обери трек:", reply_markup=keyboard)
+
+# ===== BUTTON CLICK =====
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    chat_id = call.message.chat.id
+    index = int(call.data)
+
+    if chat_id not in user_results:
+        bot.answer_callback_query(call.id, "❌ Список застарів")
         return
 
-    try:
-        with open(filename, "rb") as f:
-            bot.send_audio(chat_id, f, title=title)
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
+    _, _, url = user_results[chat_id][index]
+    bot.answer_callback_query(call.id, "⏳ Завантажую...")
+    download_audio(chat_id, url)
+    del user_results[chat_id]
 
-# =========================
-# RUN (З ПЕРЕЗАПУСКОМ)
-# =========================
-print("BOT STARTED")
-while True:
-    try:
-        bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        print("ERROR:", e)
-        time.sleep(5)
-
+print("🔥 Бот запущений (FULL + FAST)")
+bot.infinity_polling()
 
 
 
