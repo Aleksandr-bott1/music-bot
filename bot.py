@@ -1,5 +1,6 @@
 import os
 import time
+import random
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
@@ -9,16 +10,25 @@ from yt_dlp import YoutubeDL
 # =====================
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
-# очищає всі старі webhook / polling (409 fix)
 telebot.apihelper.delete_webhook(TOKEN)
-
 bot = telebot.TeleBot(TOKEN)
 
 # =====================
-# ⚡ КЕШ (ПРИСКОРЕННЯ)
+# 🖼️ КАРТИНКИ (Unsplash)
+# =====================
+MUSIC_IMAGES = [
+    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
+    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
+    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
+    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
+    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
+]
+
+# =====================
+# ⚡ КЕШ (ШВИДКІСТЬ)
 # =====================
 CACHE = {}
-CACHE_TTL = 300  # 5 хвилин
+CACHE_TTL = 300  # 5 хв
 
 # =====================
 # 🎵 yt-dlp MP3
@@ -38,23 +48,22 @@ YDL_AUDIO_OPTS = {
 # =====================
 # 🔍 ШВИДКИЙ ПОШУК
 # =====================
-def search_music(query: str):
+def search_music(query):
     now = time.time()
 
-    # кеш
     if query in CACHE:
         data, ts = CACHE[query]
         if now - ts < CACHE_TTL:
             return data
 
-    search_opts = {
+    opts = {
         "quiet": True,
-        "default_search": "ytsearch8",  # швидше
+        "default_search": "ytsearch15",
         "noplaylist": True,
-        "extract_flat": "in_playlist",  # МЕНШЕ ДАНИХ → ШВИДШЕ
+        "extract_flat": "in_playlist",
     }
 
-    with YoutubeDL(search_opts) as ydl:
+    with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(query, download=False)
         results = info.get("entries", [])
 
@@ -83,14 +92,15 @@ def sort_tracks(tracks):
     return originals + remixes
 
 # =====================
-# ▶️ /start
+# ▶️ START
 # =====================
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎵 Напиши назву пісні або виконавця\n"
-        "⚡ Працюю швидко, без лагів"
+        "🎶 Привіт!\n\n"
+        "🔎 Напиши назву пісні або виконавця\n"
+        "⚡ Знайду швидко та якісно"
     )
 
 # =====================
@@ -99,30 +109,43 @@ def start(message):
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     query = message.text.strip()
+    chat_id = message.chat.id
 
-    bot.send_message(message.chat.id, "🔍 Шукаю...")
+    bot.send_message(chat_id, "🔍 Шукаю музику...")
 
     results = search_music(query)
     if not results:
-        bot.send_message(message.chat.id, "❌ Нічого не знайшов")
+        bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    results = sort_tracks(results)[:10]  # показуємо 10
+    results = sort_tracks(results)[:10]
+
+    # 🖼️ Надіслати картинку
+    image = random.choice(MUSIC_IMAGES)
+    bot.send_photo(
+        chat_id,
+        image,
+        caption="🎧 Знайдено треки — обирай 👇"
+    )
 
     keyboard = types.InlineKeyboardMarkup()
-    for r in results:
-        title = r.get("title", "Без назви")[:60]
-        url = r.get("url") or r.get("webpage_url")
-        if url:
-            keyboard.add(
-                types.InlineKeyboardButton(
-                    title, callback_data=url
-                )
+    emojis = ["🎵", "🎶", "🔥", "🎧", "🎼"]
+
+    for i, r in enumerate(results, start=1):
+        title = r.get("title", "Без назви")[:55]
+        video_id = r.get("id")
+        emoji = emojis[i % len(emojis)]
+
+        keyboard.add(
+            types.InlineKeyboardButton(
+                f"{emoji} {title}",
+                callback_data=video_id
             )
+        )
 
     bot.send_message(
-        message.chat.id,
-        "🎶 Обери трек:",
+        chat_id,
+        "👇 Обери пісню:",
         reply_markup=keyboard
     )
 
@@ -132,7 +155,8 @@ def handle_text(message):
 @bot.callback_query_handler(func=lambda call: True)
 def download_song(call):
     chat_id = call.message.chat.id
-    url = call.data
+    video_id = call.data
+    url = f"https://www.youtube.com/watch?v={video_id}"
 
     bot.send_message(chat_id, "⬇️ Завантажую mp3...")
 
@@ -140,7 +164,8 @@ def download_song(call):
         with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-            filename = filename.rsplit(".", 1)[0] + ".mp3"
+            filename = filename.rsplit(".
+", 1)[0] + ".mp3"
 
         with open(filename, "rb") as audio:
             bot.send_audio(chat_id, audio)
@@ -154,4 +179,5 @@ def download_song(call):
 # 🚀 ЗАПУСК
 # =====================
 bot.infinity_polling(skip_pending=True)
+
 
