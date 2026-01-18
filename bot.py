@@ -20,32 +20,52 @@ IMAGES = [
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
+    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
 # =====================
-# ⚡ АУДІО (МАКС ШВИДКО)
+# ⚡ АУДІО (ШВИДКО, СТАБІЛЬНО)
 # =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
     "noplaylist": True,
-    "socket_timeout": 8,
+    "socket_timeout": 10,
     "outtmpl": "%(id)s.%(ext)s",
 }
 
 # =====================
-# ⚡ МЕГА ШВИДКИЙ ПОШУК
+# ⚡ 2-РІВНЕВИЙ ПОШУК
 # =====================
 def fast_search(query):
-    with YoutubeDL({
-        "quiet": True,
-        "default_search": "ytsearch5",
-        "noplaylist": True,
-        "extract_flat": True,
-        "socket_timeout": 8,
-    }) as ydl:
-        data = ydl.extract_info(query, download=False)
-        return data.get("entries", [])
+    # ⚡ Дуже швидкий
+    try:
+        with YoutubeDL({
+            "quiet": True,
+            "default_search": "ytsearch3",
+            "noplaylist": True,
+            "extract_flat": True,
+            "socket_timeout": 6,
+        }) as ydl:
+            data = ydl.extract_info(query, download=False)
+            results = data.get("entries", [])
+            if results:
+                return results
+    except Exception:
+        pass
+
+    # 🐢 Надійний (fallback)
+    try:
+        with YoutubeDL({
+            "quiet": True,
+            "default_search": "ytsearch5",
+            "noplaylist": True,
+            "socket_timeout": 10,
+        }) as ydl:
+            data = ydl.extract_info(query, download=False)
+            return data.get("entries", [])
+    except Exception:
+        return []
 
 # =====================
 # ▶️ START
@@ -57,7 +77,7 @@ def start(message):
         "🎧 Привіт!\n\n"
         "🎵 Напиши назву пісні або виконавця\n"
         "🔥 TOP результат буде першим\n"
-        "⚡ Пошук 1–2 секунди"
+        "⚡ Пошук 1–3 секунди"
     )
 
 # =====================
@@ -70,10 +90,17 @@ def handle_text(message):
 
     results = fast_search(query)
     if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
+        bot.send_message(
+            chat_id,
+            "❌ Не вдалося знайти 😔\n"
+            "Спробуй:\n"
+            "• іншу назву\n"
+            "• додати виконавця\n"
+            "• англійською"
+        )
         return
 
-    # ✅ TOP результат завжди перший
+    # 🔥 TOP завжди перший
     top = results[0]
     rest = results[1:5]
     final_results = [top] + rest
@@ -92,7 +119,10 @@ def handle_text(message):
         title = raw_title.split("(")[0].split("[")[0][:35].strip()
         video_id = r.get("id")
 
-        emoji = "🔥" if i == 0 else ("🎵" if i % 2 == 0 else "🔥")
+        if i == 0:
+            emoji = "🔥"
+        else:
+            emoji = "🎵" if i % 2 == 0 else "🔥"
 
         keyboard.add(
             types.InlineKeyboardButton(
@@ -128,13 +158,5 @@ def send_audio(call):
             chat_id,
             audio,
             title=title,
-            performer="🎧 Music Bot"
-        )
 
-    os.remove(filename)
-
-# =====================
-# 🚀 RUN
-# =====================
-bot.infinity_polling(skip_pending=True)
 
