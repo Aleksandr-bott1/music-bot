@@ -15,18 +15,21 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎵 Музичний бот\n\n"
-        "Напиши назву пісні — я знайду і надішлю mp3."
+        "Напиши назву пісні — я знайду і надішлю аудіо."
     )
 
 def find_video_url(query):
     try:
-        cmd = [
-            "yt-dlp",
-            "--flat-playlist",
-            "--print", "webpage_url",
-            f"ytsearch1:{query}"
-        ]
-        result = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+        result = subprocess.check_output(
+            [
+                "yt-dlp",
+                "--flat-playlist",
+                "--print", "webpage_url",
+                f"ytsearch1:{query}"
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL
+        )
         return result.strip()
     except:
         return None
@@ -36,8 +39,6 @@ def download_audio(chat_id, url):
         subprocess.run(
             [
                 "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
                 "--no-playlist",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
                 url
@@ -46,17 +47,17 @@ def download_audio(chat_id, url):
         )
 
         for f in os.listdir(DOWNLOAD_DIR):
-            if f.endswith(".mp3"):
+            if f.endswith((".m4a", ".webm", ".mp3")):
                 path = os.path.join(DOWNLOAD_DIR, f)
                 with open(path, "rb") as audio:
                     bot.send_audio(chat_id, audio)
                 os.remove(path)
                 return
 
-        bot.send_message(chat_id, "❌ Не вдалося завантажити трек")
+        bot.send_message(chat_id, "❌ Не вдалося отримати аудіо")
 
     except:
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+        bot.send_message(chat_id, "❌ Помилка під час завантаження")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
@@ -69,10 +70,3 @@ def handle_text(message):
     if not url:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
-
-    download_audio(chat_id, url)
-
-print("MUSIC BOT STARTED")
-bot.infinity_polling(skip_pending=True, none_stop=True)
-
-
