@@ -15,7 +15,6 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
 
-# ===== ФОТО =====
 PHOTOS = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
@@ -23,7 +22,6 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
 ]
 
-# ===== НАЛАШТУВАННЯ =====
 BAD_WORDS = [
     "karaoke", "live", "cover", "instrumental",
     "acapella", "acoustic", "concert"
@@ -37,24 +35,21 @@ REMIX_TAGS = [
 
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-# ===== ДОПОМІЖНІ =====
-def is_bad(title):
-    title = title.lower()
-    return any(w in title for w in BAD_WORDS)
 
+# ===== yt-dlp runner (STABLE) =====
 def run_yt_dlp(args):
     return subprocess.check_output(
         ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
         text=True,
         stderr=subprocess.DEVNULL,
         timeout=15
-    )def run_yt_dlp(args):
-    return subprocess.check_output(
-        ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
-        text=True,
-        stderr=subprocess.DEVNULL,
-        timeout=15
     )
+
+
+def is_bad(title):
+    title = title.lower()
+    return any(w in title for w in BAD_WORDS)
+
 
 def search_soundcloud(query, count):
     out = run_yt_dlp([
@@ -66,6 +61,7 @@ def search_soundcloud(query, count):
     ])
     lines = out.strip().split("\n")
     return list(zip(lines[0::2], lines[1::2]))
+
 
 def download_audio(chat_id, url):
     try:
@@ -94,11 +90,12 @@ def download_audio(chat_id, url):
 
         os.remove(path)
 
-    except Exception as e:
+    except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
+
 # ===== START =====
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=["start"])
 def start(message):
     bot.send_photo(
         message.chat.id,
@@ -110,7 +107,8 @@ def start(message):
         )
     )
 
-# ===== MAIN =====
+
+# ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
@@ -127,7 +125,7 @@ def handle_text(message):
     results = []
     used = set()
 
-    # ОРИГІНАЛИ
+    # ОРИГІНАЛИ (1–3)
     try:
         originals = search_soundcloud(text, 3)
         for title, url in originals:
@@ -141,7 +139,7 @@ def handle_text(message):
     except:
         pass
 
-    # РЕМІКСИ
+    # РЕМІКСИ (до 15)
     for tag in REMIX_TAGS:
         if len(results) >= 15:
             break
@@ -160,9 +158,9 @@ def handle_text(message):
 
     if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
-        return
+        returnuser_results[chat_id] = results
 
-    user_results[chat_id] = resultskeyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard = InlineKeyboardMarkup(row_width=1)
     for i, (icon, title, _) in enumerate(results):
         keyboard.add(
             InlineKeyboardButton(
@@ -178,7 +176,8 @@ def handle_text(message):
         reply_markup=keyboard
     )
 
-# ===== BUTTON =====
+
+# ===== CALLBACK =====
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     chat_id = call.message.chat.id
@@ -193,8 +192,8 @@ def callback(call):
     download_audio(chat_id, url)
     del user_results[chat_id]
 
+
 print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True)
-
 
 
