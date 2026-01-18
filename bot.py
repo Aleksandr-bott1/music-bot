@@ -30,11 +30,22 @@ PHOTOS = [
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+
+    kb.add(
+        KeyboardButton("🔍 Пошук музики"),
+        KeyboardButton("🔥 Топ ремікси")
+    )
+    kb.add(
+        KeyboardButton("🎶 TikTok звук"),
+        KeyboardButton("⭐ Популярне сьогодні")
+    )
+
     bot.send_message(
         message.chat.id,
-        "🎵 **Музичний бот**\n\n"
-        "✍️ Напиши назву пісні\n"
-        "🎧 1–3 оригінали, далі ремікси",
+        "🎵 *Музичний бот*\n\n"
+        "👇 Обери дію:",
+        reply_markup=kb,
         parse_mode="Markdown"
     )
 
@@ -190,6 +201,7 @@ def callback(c):
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
