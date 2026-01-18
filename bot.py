@@ -14,7 +14,7 @@ telebot.apihelper.delete_webhook(TOKEN)
 bot = telebot.TeleBot(TOKEN)
 
 # =====================
-# 🖼️ КАРТИНКИ
+# 🖼️ МУЗИЧНІ КАРТИНКИ
 # =====================
 MUSIC_IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
@@ -24,18 +24,19 @@ MUSIC_IMAGES = [
 ]
 
 # =====================
-# ⚡ КЕШ
+# ⚡ КЕШ (ПРИСКОРЕННЯ)
 # =====================
 CACHE = {}
-CACHE_TTL = 300
+CACHE_TTL = 300  # 5 хвилин
 
 # =====================
-# 🎵 yt-dlp
+# 🎵 yt-dlp (MP3)
 # =====================
 YDL_AUDIO_OPTS = {
     "format": "bestaudio/best",
     "quiet": True,
     "noplaylist": True,
+    "socket_timeout": 10,
     "outtmpl": "%(id)s.%(ext)s",
     "postprocessors": [
         {
@@ -47,7 +48,7 @@ YDL_AUDIO_OPTS = {
 }
 
 # =====================
-# 🔍 ПОШУК
+# 🔍 ШВИДКИЙ ПОШУК (MAX 10 c)
 # =====================
 def search_music(query):
     now = time.time()
@@ -59,20 +60,24 @@ def search_music(query):
 
     opts = {
         "quiet": True,
-        "default_search": "ytsearch15",
+        "default_search": "ytsearch8",
         "noplaylist": True,
         "extract_flat": "in_playlist",
+        "socket_timeout": 10,
     }
 
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        results = info.get("entries", [])
+    try:
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(query, download=False)
+            results = info.get("entries", [])
+    except Exception:
+        return []
 
     CACHE[query] = (results, now)
     return results
 
 # =====================
-# 🧠 СОРТУВАННЯ
+# 🧠 ОРИГІНАЛ → РЕМІКСИ
 # =====================
 def sort_tracks(tracks):
     originals = []
@@ -99,8 +104,9 @@ def sort_tracks(tracks):
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎶 Привіт!\n"
-        "🔍 Напиши назву пісні або виконавця"
+        "🎶 Привіт!\n\n"
+        "🔎 Напиши назву пісні або виконавця\n"
+        "⚡ Якщо YouTube гальмує — я не зависаю"
     )
 
 # =====================
@@ -111,11 +117,11 @@ def handle_text(message):
     chat_id = message.chat.id
     query = message.text.strip()
 
-    bot.send_message(chat_id, "🔍 Шукаю...")
+    bot.send_message(chat_id, "⚡ Шукаю… максимум 10 секунд")
 
     results = search_music(query)
     if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
+        bot.send_message(chat_id, "❌ Не вдалося знайти (YouTube гальмує)")
         return
 
     results = sort_tracks(results)[:10]
@@ -158,19 +164,7 @@ def download_song(call):
 
     bot.send_message(chat_id, "⬇️ Завантажую mp3...")
 
-    with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        filename = filename.rsplit(".", 1)[0] + ".mp3"
-
-    with open(filename, "rb") as audio:
-        bot.send_audio(chat_id, audio)
-
-    os.remove(filename)
-
-# =====================
-# 🚀 RUN
-# =====================
-bot.infinity_polling(skip_pending=True)
-
-
+    try:
+        with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.
