@@ -153,11 +153,15 @@ def handle_text(message):
 
     user_results[chat_id] = results
 
-    keyboard = InlineKeyboardMarkup(row_width=1)for i, (icon, title, _) in enumerate(results):
-        keyboard.add(
-            InlineKeyboardButton(
-                text=f"{icon} {title[:60]}",
-                callback_data=str(i)
+   keyboard = InlineKeyboardMarkup(row_width=1)
+
+for i, (icon, title, _) in enumerate(results):
+    keyboard.add(
+        InlineKeyboardButton(
+            text=f"{icon} {title[:60]}",
+            callback_data=str(i)
+        )
+    )
             )
         )
 
@@ -185,5 +189,6 @@ def callback(call):
 
 print("🔥 Бот запущений (FAST MODE)")
 bot.infinity_polling(skip_pending=True)
+
 
 
