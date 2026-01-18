@@ -139,10 +139,7 @@ def download_audio(chat_id, query):
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
 # ================= ТЕКСТ =================
-@bot.message_handler(func=lambda m: True)
-def handle_text(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
+
 
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
@@ -200,7 +197,12 @@ def callback(c):
    
 
 print("BOT STARTED — FINAL STABLE VERSION")
+@bot.message_handler(func=lambda m: True)
+def handle_text(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
 bot.infinity_polling(skip_pending=True)
+
 
 
 
