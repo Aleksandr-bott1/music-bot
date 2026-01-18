@@ -8,8 +8,6 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
-
-# 🔧 КРИТИЧНІ ФІКСИ (НЕ ЛАМАЮТЬ ЛОГІКУ)
 bot.delete_webhook(drop_pending_updates=True)
 
 DOWNLOAD_DIR = "music"
@@ -29,15 +27,10 @@ BAD_WORDS = [
     "acapella", "acoustic", "concert"
 ]
 
-REMIX_TAGS = [
-    "remix",
-    "phonk",
-    "bass boosted"
-]
-
+REMIX_TAGS = ["remix", "phonk", "bass boosted"]
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-# ===== yt-dlp runner (СТАБІЛЬНИЙ) =====
+# ===== yt-dlp runner =====
 def run_yt_dlp(args):
     return subprocess.check_output(
         ["python", "-m", "yt_dlp", "--socket-timeout", "10"] + args,
@@ -110,7 +103,6 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # TikTok
     if TIKTOK_REGEX.search(text):
         bot.send_message(chat_id, "🎶 Дістаю звук з TikTok...")
         download_audio(chat_id, text)
@@ -121,7 +113,6 @@ def handle_text(message):
     results = []
     used = set()
 
-    # 1–3 ОРИГІНАЛИ
     try:
         originals = search_music(text, 5)
         for title, url in originals:
@@ -135,7 +126,6 @@ def handle_text(message):
     except:
         pass
 
-    # 3–15 РЕМІКСИ
     for tag in REMIX_TAGS:
         if len(results) >= 15:
             break
@@ -154,7 +144,7 @@ def handle_text(message):
 
     if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
-return
+        return
 
     user_results[chat_id] = results
 
