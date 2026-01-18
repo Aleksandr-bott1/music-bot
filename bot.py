@@ -8,14 +8,15 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
-bot.remove_webhook()
+
+# 🔧 КРИТИЧНІ ФІКСИ (НЕ ЛАМАЮТЬ ЛОГІКУ)
+bot.delete_webhook(drop_pending_updates=True)
 
 DOWNLOAD_DIR = "music"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
 
-# ===== ФОТО =====
 PHOTOS = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
@@ -23,7 +24,6 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
 ]
 
-# ===== ФІЛЬТРИ =====
 BAD_WORDS = [
     "karaoke", "live", "cover", "instrumental",
     "acapella", "acoustic", "concert"
@@ -37,7 +37,6 @@ REMIX_TAGS = [
 
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
-
 # ===== yt-dlp runner (СТАБІЛЬНИЙ) =====
 def run_yt_dlp(args):
     return subprocess.check_output(
@@ -47,8 +46,10 @@ def run_yt_dlp(args):
         timeout=15
     )
 
+def is_bad(title):
+    title = title.lower()
+    return any(w in title for w in BAD_WORDS)
 
-# ===== ПОШУК (YouTube) =====
 def search_music(query, count):
     out = run_yt_dlp([
         "--ignore-errors",
@@ -60,13 +61,6 @@ def search_music(query, count):
     lines = out.strip().split("\n")
     return list(zip(lines[0::2], lines[1::2]))
 
-
-def is_bad(title):
-    title = title.lower()
-    return any(w in title for w in BAD_WORDS)
-
-
-# ===== ЗАВАНТАЖЕННЯ =====
 def download_audio(chat_id, url):
     try:
         subprocess.run(
@@ -97,7 +91,6 @@ def download_audio(chat_id, url):
     except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
-
 # ===== START =====
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -110,7 +103,6 @@ def start(message):
             "🔗 Або встав TikTok-посилання 🎶"
         )
     )
-
 
 # ===== MAIN =====
 @bot.message_handler(func=lambda m: True)
@@ -160,8 +152,9 @@ def handle_text(message):
         except:
             pass
 
-    if not results:send_message(chat_id, "❌ Нічого не знайшов")
-        return
+    if not results:
+        bot.send_message(chat_id, "❌ Нічого не знайшов")
+return
 
     user_results[chat_id] = results
 
@@ -181,7 +174,6 @@ def handle_text(message):
         reply_markup=keyboard
     )
 
-
 # ===== CALLBACK =====
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
@@ -197,8 +189,5 @@ def callback(call):
     download_audio(chat_id, url)
     del user_results[chat_id]
 
-
-print("🔥 Бот запущений (FINAL / STABLE)")
-bot.infinity_polling(skip_pending=True)
-        bot.
-            
+print("🔥 Бот запущений (STABLE)")
+bot.infinity_polling(skip_pending=True, none_stop=True)
