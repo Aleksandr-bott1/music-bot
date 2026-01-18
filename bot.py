@@ -11,7 +11,16 @@ bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 # =====================
-# yt-dlp налаштування
+# КАРТИНКИ
+# =====================
+PHOTOS = [
+    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
+    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
+    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
+]
+
+# =====================
+# yt-dlp
 # =====================
 YDL_SEARCH = {
     "quiet": True,
@@ -41,19 +50,18 @@ def start(message):
         "🎧 Музичний бот\n\n"
         "✍️ Напиши назву пісні\n"
         "🔗 або встав TikTok-посилання\n\n"
-        "🔥 1–3 оригінали → ремікси\n"
-        "⚡ Без повторів"
+        "🔥 1–3 оригінали → ремікси"
     )
 
 # =====================
-# ПОШУК (1 РАЗ)
+# ПОШУК
 # =====================
 @bot.message_handler(content_types=["text"])
 def search_music(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # TikTok → прибираємо URL, лишаємо текст
+    # TikTok → чистимо URL
     if "tiktok.com" in text:
         query = re.sub(r"https?://\S+", "", text).strip()
         if not query:
@@ -93,13 +101,18 @@ def search_music(message):
 
     final = (originals[:3] + remixes)[:15]
 
+    bot.send_photo(
+        chat_id,
+        PHOTOS[hash(chat_id) % len(PHOTOS)],
+        caption="🎶 Обери пісню 👇"
+    )
+
     keyboard = types.InlineKeyboardMarkup()
 
     for i, e in enumerate(final):
         title = e.get("title", "Без назви")
         title = title.split("(")[0].split("[")[0][:40]
         vid = e.get("id")
-
         emoji = "🔥" if i % 2 == 0 else "🎵"
 
         keyboard.add(
@@ -110,14 +123,14 @@ def search_music(message):
         )
 
     bot.edit_message_text(
-        "🎶 Обери пісню:",
+        "👇 Список пісень:",
         chat_id,
         status.message_id,
         reply_markup=keyboard
     )
 
 # =====================
-# АУДІО
+# AUDIO
 # =====================
 @bot.callback_query_handler(func=lambda c: True)
 def send_audio(call):
@@ -139,9 +152,9 @@ def send_audio(call):
     os.remove(filename)
 
 # =====================
-# WEBHOOK
+# WEBHOOK ENDPOINT
 # =====================
-@app.route(f"/{TOKEN}", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
     update = telebot.types.Update.de_json(
         request.stream.read().decode("utf-8")
@@ -156,7 +169,4 @@ def index():
 # =====================
 # RUN
 # =====================
-if name == "__main__":
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{os.environ.get('RAILWAY_STATIC_URL')}/{TOKEN}")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
