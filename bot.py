@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
@@ -13,18 +14,17 @@ telebot.apihelper.delete_webhook(TOKEN)
 bot = telebot.TeleBot(TOKEN)
 
 # =====================
-# 🖼️ МУЗИЧНІ КАРТИНКИ
+# 🖼️ КАРТИНКИ
 # =====================
 IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
 # =====================
-# ⚡ АУДІО (ШВИДКО, СТАБІЛЬНО)
+# ⚡ AUDIO (МАКС СТАБІЛЬНО)
 # =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
@@ -35,26 +35,9 @@ YDL_AUDIO = {
 }
 
 # =====================
-# ⚡ 2-РІВНЕВИЙ ПОШУК
+# ⚡ СТАБІЛЬНИЙ ПОШУК
 # =====================
-def fast_search(query):
-    # ⚡ Дуже швидкий
-    try:
-        with YoutubeDL({
-            "quiet": True,
-            "default_search": "ytsearch3",
-            "noplaylist": True,
-            "extract_flat": True,
-            "socket_timeout": 6,
-        }) as ydl:
-            data = ydl.extract_info(query, download=False)
-            results = data.get("entries", [])
-            if results:
-                return results
-    except Exception:
-        pass
-
-    # 🐢 Надійний (fallback)
+def search_music(query):
     try:
         with YoutubeDL({
             "quiet": True,
@@ -74,38 +57,40 @@ def fast_search(query):
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎧 Привіт!\n\n"
-        "🎵 Напиши назву пісні або виконавця\n"
-        "🔥 TOP результат буде першим\n"
-        "⚡ Пошук 1–3 секунди"
+        "🎧 Музичний бот\n\n"
+        "🎵 Напиши назву пісні\n"
+        "🔗 або просто встав TikTok-посилання\n\n"
+        "⚡ Стабільний пошук без зависань"
     )
 
 # =====================
-# 🔎 ПОШУК
+# 🔎 ОБРОБКА ТЕКСТУ / TikTok
 # =====================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
-    query = message.text.strip()
+    text = message.text.strip()
 
-    results = fast_search(query)
+    # якщо TikTok — чистимо текст
+    if "tiktok.com" in text:
+        query = re.sub(r"https?://\S+", "", text).strip()
+        if not query:
+            query = "music"
+    else:
+        query = text
+
+    bot.send_message(chat_id, "🔍 Шукаю музику...")
+
+    results = search_music(query)
     if not results:
         bot.send_message(
             chat_id,
             "❌ Не вдалося знайти 😔\n"
-            "Спробуй:\n"
-            "• іншу назву\n"
-            "• додати виконавця\n"
-            "• англійською"
+            "Спробуй іншу назву або англійською"
         )
         return
 
-    # 🔥 TOP завжди перший
-    top = results[0]
-    rest = results[1:5]
-    final_results = [top] + rest
-
-    # 🖼️ СПОЧАТКУ КАРТИНКА
+    # 🖼️ КАРТИНКА
     bot.send_photo(
         chat_id,
         random.choice(IMAGES),
@@ -114,15 +99,12 @@ def handle_text(message):
 
     keyboard = types.InlineKeyboardMarkup()
 
-    for i, r in enumerate(final_results):
+    for i, r in enumerate(results[:5]):
         raw_title = r.get("title", "Без назви")
         title = raw_title.split("(")[0].split("[")[0][:35].strip()
         video_id = r.get("id")
 
-        if i == 0:
-            emoji = "🔥"
-        else:
-            emoji = "🎵" if i % 2 == 0 else "🔥"
+        emoji = "🔥" if i == 0 else ("🎵" if i % 2 == 0 else "🔥")
 
         keyboard.add(
             types.InlineKeyboardButton(
@@ -138,12 +120,11 @@ def handle_text(message):
     )
 
 # =====================
-# ⬇️ НАДСИЛАННЯ АУДІО
+# ⬇️ AUDIO
 # =====================
 @bot.callback_query_handler(func=lambda call: True)
 def send_audio(call):
     chat_id = call.message.chat.id
-
     video_id, title = call.data.split("|", 1)
     url = f"https://www.youtube.com/watch?v={video_id}"
 
@@ -158,5 +139,13 @@ def send_audio(call):
             chat_id,
             audio,
             title=title,
+            performer="🎧 Music Bot"
+        )
 
+    os.remove(filename)
+
+# =====================
+# 🚀 RUN
+# =====================
+bot.infinity_polling(skip_pending=True)
 
