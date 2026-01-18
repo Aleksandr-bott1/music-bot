@@ -14,7 +14,7 @@ telebot.apihelper.delete_webhook(TOKEN)
 bot = telebot.TeleBot(TOKEN)
 
 # =====================
-# 🖼️ МУЗИЧНІ КАРТИНКИ
+# 🖼️ КАРТИНКИ
 # =====================
 MUSIC_IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
@@ -27,25 +27,27 @@ MUSIC_IMAGES = [
 # ⚡ КЕШ
 # =====================
 CACHE = {}
-CACHE_TTL = 300  # 5 хв
+CACHE_TTL = 300
 
 # =====================
-# 🎵 yt-dlp (MP3)
+# 🎵 yt-dlp
 # =====================
 YDL_AUDIO_OPTS = {
     "format": "bestaudio/best",
     "quiet": True,
     "noplaylist": True,
     "outtmpl": "%(id)s.%(ext)s",
-    "postprocessors": [{
-        "key": "FFmpegExtractAudio",
-        "preferredcodec": "mp3",
-        "preferredquality": "192",
-    }],
+    "postprocessors": [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }
+    ],
 }
 
 # =====================
-# 🔍 ПОШУК (ШВИДКИЙ)
+# 🔍 ПОШУК
 # =====================
 def search_music(query):
     now = time.time()
@@ -70,7 +72,7 @@ def search_music(query):
     return results
 
 # =====================
-# 🧠 ОРИГІНАЛ → РЕМІКСИ
+# 🧠 СОРТУВАННЯ
 # =====================
 def sort_tracks(tracks):
     originals = []
@@ -97,9 +99,8 @@ def sort_tracks(tracks):
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎶 Привіт!\n\n"
-        "🔍 Напиши назву пісні або виконавця\n"
-        "⚡ Знайду швидко та красиво"
+        "🎶 Привіт!\n"
+        "🔍 Напиши назву пісні або виконавця"
     )
 
 # =====================
@@ -119,7 +120,6 @@ def handle_text(message):
 
     results = sort_tracks(results)[:10]
 
-    # 🖼️ картинка
     bot.send_photo(
         chat_id,
         random.choice(MUSIC_IMAGES),
@@ -158,15 +158,19 @@ def download_song(call):
 
     bot.send_message(chat_id, "⬇️ Завантажую mp3...")
 
-    try:
-        with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            filename = filename.rsplit(".", 1)[0] + ".mp3"
+    with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        filename = filename.rsplit(".", 1)[0] + ".mp3"
 
-        with open(filename, "rb") as audio:
-            bot.send_audio(chat_id, audio)
+    with open(filename, "rb") as audio:
+        bot.send_audio(chat_id, audio)
 
-        os.remove(filename)
+    os.remove(filename)
+
+# =====================
+# 🚀 RUN
+# =====================
+bot.infinity_polling(skip_pending=True)
 
 
