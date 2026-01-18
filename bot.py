@@ -51,13 +51,13 @@ def is_bad(title):
     return any(w in title for w in BAD_WORDS)
 
 
-def search_soundcloud(query, count):
+def search_youtube(query, count):
     out = run_yt_dlp([
         "--ignore-errors",
         "--flat-playlist",
         "--print", "title",
         "--print", "webpage_url",
-        f"scsearch{count}:{query}"
+        f"ytsearch{count}:{query}"
     ])
     lines = out.strip().split("\n")
     return list(zip(lines[0::2], lines[1::2]))
@@ -195,5 +195,6 @@ def callback(call):
 
 print("🔥 Бот запущений (STABLE)")
 bot.infinity_polling(skip_pending=True)
+
 
 
