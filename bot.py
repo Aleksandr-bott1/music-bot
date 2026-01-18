@@ -14,24 +14,23 @@ telebot.apihelper.delete_webhook(TOKEN)
 bot = telebot.TeleBot(TOKEN)
 
 # =====================
-# 🖼️ КАРТИНКИ (Unsplash)
+# 🖼️ МУЗИЧНІ КАРТИНКИ
 # =====================
 MUSIC_IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
+    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
 # =====================
-# ⚡ КЕШ (ШВИДКІСТЬ)
+# ⚡ КЕШ
 # =====================
 CACHE = {}
 CACHE_TTL = 300  # 5 хв
 
 # =====================
-# 🎵 yt-dlp MP3
+# 🎵 yt-dlp (MP3)
 # =====================
 YDL_AUDIO_OPTS = {
     "format": "bestaudio/best",
@@ -46,7 +45,7 @@ YDL_AUDIO_OPTS = {
 }
 
 # =====================
-# 🔍 ШВИДКИЙ ПОШУК
+# 🔍 ПОШУК (ШВИДКИЙ)
 # =====================
 def search_music(query):
     now = time.time()
@@ -71,7 +70,7 @@ def search_music(query):
     return results
 
 # =====================
-# 🧠 СОРТУВАННЯ
+# 🧠 ОРИГІНАЛ → РЕМІКСИ
 # =====================
 def sort_tracks(tracks):
     originals = []
@@ -99,19 +98,19 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎶 Привіт!\n\n"
-        "🔎 Напиши назву пісні або виконавця\n"
-        "⚡ Знайду швидко та якісно"
+        "🔍 Напиши назву пісні або виконавця\n"
+        "⚡ Знайду швидко та красиво"
     )
 
 # =====================
-# 🔎 ОБРОБКА ТЕКСТУ
+# 🔎 ТЕКСТ
 # =====================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
-    query = message.text.strip()
     chat_id = message.chat.id
+    query = message.text.strip()
 
-    bot.send_message(chat_id, "🔍 Шукаю музику...")
+    bot.send_message(chat_id, "🔍 Шукаю...")
 
     results = search_music(query)
     if not results:
@@ -120,18 +119,17 @@ def handle_text(message):
 
     results = sort_tracks(results)[:10]
 
-    # 🖼️ Надіслати картинку
-    image = random.choice(MUSIC_IMAGES)
+    # 🖼️ картинка
     bot.send_photo(
         chat_id,
-        image,
+        random.choice(MUSIC_IMAGES),
         caption="🎧 Знайдено треки — обирай 👇"
     )
 
     keyboard = types.InlineKeyboardMarkup()
     emojis = ["🎵", "🎶", "🔥", "🎧", "🎼"]
 
-    for i, r in enumerate(results, start=1):
+    for i, r in enumerate(results):
         title = r.get("title", "Без назви")[:55]
         video_id = r.get("id")
         emoji = emojis[i % len(emojis)]
@@ -150,7 +148,7 @@ def handle_text(message):
     )
 
 # =====================
-# ⬇️ ЗАВАНТАЖЕННЯ MP3
+# ⬇️ MP3
 # =====================
 @bot.callback_query_handler(func=lambda call: True)
 def download_song(call):
@@ -164,20 +162,11 @@ def download_song(call):
         with YoutubeDL(YDL_AUDIO_OPTS) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-            filename = filename.rsplit(".
-", 1)[0] + ".mp3"
+            filename = filename.rsplit(".", 1)[0] + ".mp3"
 
         with open(filename, "rb") as audio:
             bot.send_audio(chat_id, audio)
 
         os.remove(filename)
-
-    except Exception:
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
-
-# =====================
-# 🚀 ЗАПУСК
-# =====================
-bot.infinity_polling(skip_pending=True)
 
 
