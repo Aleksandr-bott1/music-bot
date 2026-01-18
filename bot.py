@@ -6,6 +6,7 @@ import random
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
+print("FILE LOADED")
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
@@ -204,6 +205,7 @@ def callback(c):
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
