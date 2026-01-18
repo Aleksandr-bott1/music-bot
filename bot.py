@@ -39,19 +39,22 @@ def start(message):
 
 # ================= ПОШУК (ДУЖЕ ШВИДКИЙ) =================
 def search_music(query):
-    r = requests.get(
-        "https://itunes.apple.com/search",
-        params={"term": query, "media": "music", "limit": 25},
-        timeout=5
-    )
+    url = "https://itunes.apple.com/search"
+    params = {
+        "term": query,
+        "media": "music",
+        "limit": 30
+    }
+
+    r = requests.get(url, params=params, timeout=6)
     data = r.json()
 
     originals = []
-    remixes = []
+    others = []
 
     remix_words = [
         "remix", "phonk", "sped", "slowed",
-        "bass", "edit", "rework", "mix"
+        "bass", "edit", "rework", "mix", "version"
     ]
 
     seen = set()
@@ -71,15 +74,21 @@ def search_music(query):
         yt_query = f"{artist} {track}"
         lower = title.lower()
 
-        if any(w in lower for w in remix_words):
-            remixes.append((title, yt_query))
-        else:
+        # ПЕРШІ 3 — СТРОГО ОРИГІНАЛИ
+        if len(originals) < 3 and not any(w in lower for w in remix_words):
             originals.append((title, yt_query))
+        else:
+            others.append((title, yt_query))
 
-    # ⬇️ ЧІТКЕ ПРАВИЛО
-    final = []
-    final.extend(originals[:3])   # ПЕРШІ 3 — ОРИГІНАЛИ
-    final.extend(remixes)         # ПОТІМ РЕМІКСИ
+    # якщо оригіналів менше 3 — добираємо
+    while len(originals) < 3 and others:
+        originals.append(others.pop(0))
+
+    final = originals + others
+
+    # гарантуємо 10 результатів
+    while len(final) < 10:
+        final.append((query, query))
 
     return final[:10]
 
@@ -179,3 +188,4 @@ def callback(c):
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
