@@ -20,11 +20,10 @@ IMAGES = [
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-    "https://images.unsplash.com/photo-1487180144351-b8472da7d491",
 ]
 
 # =====================
-# ⚡ НАЙШВИДШЕ АУДІО (без mp3)
+# ⚡ АУДІО (МАКС ШВИДКО)
 # =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
@@ -40,7 +39,7 @@ YDL_AUDIO = {
 def fast_search(query):
     with YoutubeDL({
         "quiet": True,
-        "default_search": "ytsearch3",
+        "default_search": "ytsearch5",
         "noplaylist": True,
         "extract_flat": True,
         "socket_timeout": 8,
@@ -57,8 +56,8 @@ def start(message):
         message.chat.id,
         "🎧 Привіт!\n\n"
         "🎵 Напиши назву пісні або виконавця\n"
-        "⚡ Пошук майже миттєвий\n"
-        "🖼️ Гарні картинки + 🔥"
+        "🔥 TOP результат буде першим\n"
+        "⚡ Пошук 1–2 секунди"
     )
 
 # =====================
@@ -69,14 +68,17 @@ def handle_text(message):
     chat_id = message.chat.id
     query = message.text.strip()
 
-    bot.send_message(chat_id, "⚡ Шукаю...")
-
     results = fast_search(query)
     if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    # 🖼️ випадкова картинка
+    # ✅ TOP результат завжди перший
+    top = results[0]
+    rest = results[1:5]
+    final_results = [top] + rest
+
+    # 🖼️ СПОЧАТКУ КАРТИНКА
     bot.send_photo(
         chat_id,
         random.choice(IMAGES),
@@ -85,16 +87,17 @@ def handle_text(message):
 
     keyboard = types.InlineKeyboardMarkup()
 
-    for i, r in enumerate(results):
-        title = r.get("title", "Без назви")[:60]
+    for i, r in enumerate(final_results):
+        raw_title = r.get("title", "Без назви")
+        title = raw_title.split("(")[0].split("[")[0][:35].strip()
         video_id = r.get("id")
 
-        emoji = "🔥" if i % 2 == 0 else "🎵"
+        emoji = "🔥" if i == 0 else ("🎵" if i % 2 == 0 else "🔥")
 
         keyboard.add(
             types.InlineKeyboardButton(
                 f"{emoji} {title}",
-                callback_data=video_id
+                callback_data=f"{video_id}|{title}"
             )
         )
 
@@ -110,7 +113,9 @@ def handle_text(message):
 @bot.callback_query_handler(func=lambda call: True)
 def send_audio(call):
     chat_id = call.message.chat.id
-    url = f"https://www.youtube.com/watch?v={call.data}"
+
+    video_id, title = call.data.split("|", 1)
+    url = f"https://www.youtube.com/watch?v={video_id}"
 
     bot.send_message(chat_id, "⬇️ Надсилаю трек...")
 
@@ -119,7 +124,12 @@ def send_audio(call):
         filename = ydl.prepare_filename(info)
 
     with open(filename, "rb") as audio:
-        bot.send_audio(chat_id, audio)
+        bot.send_audio(
+            chat_id,
+            audio,
+            title=title,
+            performer="🎧 Music Bot"
+        )
 
     os.remove(filename)
 
@@ -127,3 +137,4 @@ def send_audio(call):
 # 🚀 RUN
 # =====================
 bot.infinity_polling(skip_pending=True)
+
