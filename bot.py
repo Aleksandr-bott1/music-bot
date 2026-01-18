@@ -1,33 +1,29 @@
 import os
-import re
+import random
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
-from flask import Flask, request
 
-TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
+TOKEN = "ВСТАВ_СВІЙ_ТОКЕН"
 
 bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
 
-# =====================
-# КАРТИНКИ
-# =====================
+# 🖼️ ФОТО (1 раз на пошук)
 PHOTOS = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
+    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
 ]
 
-# =====================
-# yt-dlp
-# =====================
+# 🔎 ПОШУК
 YDL_SEARCH = {
     "quiet": True,
     "default_search": "ytsearch25",
     "noplaylist": True,
 }
 
+# ⬇️ АУДІО
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
@@ -48,28 +44,20 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎧 Музичний бот\n\n"
-        "✍️ Напиши назву пісні\n"
-        "🔗 або встав TikTok-посилання\n\n"
-        "🔥 1–3 оригінали → ремікси"
+        "✍️ Напиши назву пісні або виконавця\n"
+        "🔥 1–3 оригінали → ремікси\n"
+        "⚡ Стабільно"
     )
 
 # =====================
-# ПОШУК
+# ПОШУК (ОДИН РАЗ)
 # =====================
 @bot.message_handler(content_types=["text"])
 def search_music(message):
     chat_id = message.chat.id
-    text = message.text.strip()
+    query = message.text.strip()
 
-    # TikTok → чистимо URL
-    if "tiktok.com" in text:
-        query = re.sub(r"https?://\S+", "", text).strip()
-        if not query:
-            query = "music"
-    else:
-        query = text
-
-    status = bot.send_message(chat_id, "🔍 Шукаю...")
+    status = bot.send_message(chat_id, "🔍 Шукаю музику...")
 
     try:
         with YoutubeDL(YDL_SEARCH) as ydl:
@@ -83,6 +71,7 @@ def search_music(message):
         bot.edit_message_text("❌ Нічого не знайшов", chat_id, status.message_id)
         return
 
+    # прибираємо дублікати + ділимо
     seen = set()
     originals, remixes = [], []
 
@@ -101,9 +90,10 @@ def search_music(message):
 
     final = (originals[:3] + remixes)[:15]
 
+    # 🖼️ ФОТО
     bot.send_photo(
         chat_id,
-        PHOTOS[hash(chat_id) % len(PHOTOS)],
+        random.choice(PHOTOS),
         caption="🎶 Обери пісню 👇"
     )
 
@@ -130,7 +120,7 @@ def search_music(message):
     )
 
 # =====================
-# AUDIO
+# АУДІО
 # =====================
 @bot.callback_query_handler(func=lambda c: True)
 def send_audio(call):
@@ -152,24 +142,7 @@ def send_audio(call):
     os.remove(filename)
 
 # =====================
-# WEBHOOK ENDPOINT
-# =====================
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    update = telebot.types.Update.de_json(
-        request.stream.read().decode("utf-8")
-    )
-    bot.process_new_updates([update])
-    return "OK", 200
-
-@app.route("/")
-def index():
-    return "Bot is running", 200
-
-# =====================
 # RUN
 # =====================
-if name == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
+bot.infinity_polling(skip_pending=True)
 
