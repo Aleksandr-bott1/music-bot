@@ -14,8 +14,8 @@ bot.delete_webhook(drop_pending_updates=True)
 DOWNLOAD_DIR = "music"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-active_search = set()
 user_results = {}
+active_search = set()
 
 PHOTOS = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
@@ -26,6 +26,7 @@ PHOTOS = [
 
 BAD_WORDS = ["karaoke", "live", "cover", "instrumental", "acoustic"]
 REMIX_TAGS = ["remix", "phonk", "bass boosted", "sped up"]
+
 TIKTOK_REGEX = re.compile(r"(tiktok\.com|vm\.tiktok\.com)")
 
 # ---------- START ----------
@@ -42,12 +43,16 @@ def start(message):
 def search_youtube(query, limit):
     cmd = [
         "yt-dlp",
-        "--flat-playlist",
         "--print", "title",
         "--print", "webpage_url",
         f"ytsearch{limit}:{query}"
     ]
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+    out = subprocess.check_output(
+        cmd,
+        text=True,
+        stderr=subprocess.DEVNULL,
+        timeout=15  # ⬅️ ВАЖЛИВО: щоб НЕ мовчав
+    )
     lines = out.strip().split("\n")
     return list(zip(lines[0::2], lines[1::2]))
 
@@ -69,10 +74,12 @@ def download_audio(chat_id, url):
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
                 url
             ],
-            check=True
+            check=True,
+            timeout=60
         )
 
         time.sleep(1)
+
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
             bot.send_message(chat_id, "❌ Аудіо не знайдено")
@@ -98,22 +105,21 @@ def handle_text(message):
         return
 
     active_search.add(chat_id)
+    msg = bot.send_message(chat_id, "🔍 Шукаю…")
 
     # TikTok
     if TIKTOK_REGEX.search(text):
-        bot.send_message(chat_id, "🎶 Дістаю звук з TikTok…")
+        bot.edit_message_text("🎶 Дістаю звук з TikTok…", chat_id, msg.message_id)
         download_audio(chat_id, text)
         active_search.remove(chat_id)
         return
-
-    bot.send_message(chat_id, "🔍 Шукаю…")
 
     results = []
     used = set()
 
     # ---- ОРИГІНАЛИ (1–3) ----
     try:
-        for title, url in search_youtube(text, 5):
+        for title, url in search_youtube(text, 6):
             if is_bad(title):
                 continue
             key = title.lower()
@@ -129,7 +135,7 @@ def handle_text(message):
     # ---- РЕМІКСИ ----
     for tag in REMIX_TAGS:
         try:
-            for title, url in search_youtube(f"{text} {tag}", 5):
+            for title, url in search_youtube(f"{text} {tag}", 6):
                 if is_bad(title):
                     continue
                 key = title.lower()
@@ -143,7 +149,7 @@ def handle_text(message):
             pass
 
     if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
+        bot.edit_message_text("❌ Нічого не знайшов", chat_id, msg.message_id)
         active_search.remove(chat_id)
         return
 
@@ -165,8 +171,6 @@ def handle_text(message):
         reply_markup=kb
     )
 
-    # ❗ ВАЖЛИВО: active_search НЕ чистимо тут
-
 # ---------- КНОПКИ ----------
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
@@ -181,10 +185,8 @@ def callback(c):
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, url)
 
-    # очищаємо ПІСЛЯ вибору
     user_results.pop(chat_id, None)
     active_search.discard(chat_id)
 
-print("BOT STARTED — FINAL STABLE")
+print("BOT STARTED — FINAL WITH TIMEOUT")
 bot.infinity_polling(skip_pending=True, none_stop=True)
-
