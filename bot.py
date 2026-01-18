@@ -184,8 +184,9 @@ def callback(c):
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, query)
 
-    user_results.pop(chat_id, None)
+   
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
 
