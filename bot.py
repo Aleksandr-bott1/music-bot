@@ -3,7 +3,6 @@ import requests
 import subprocess
 import os
 import random
-import time
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
@@ -18,11 +17,13 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 user_results = {}
 active_users = set()
 
+# 🔥 КРАСИВІ ФОТО
 PHOTOS = [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
+    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
+    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
+    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745",
 ]
 
 # ================= START =================
@@ -31,25 +32,30 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎵 **Музичний бот**\n\n"
-        "✍️ Напиши назву пісні або виконавця\n"
-        "🎧 Я покажу 10 варіантів\n"
-        "🔥 1–3 оригінали, далі ремікси",
+        "✍️ Напиши назву пісні\n"
+        "🎧 1–3 оригінали, далі ремікси",
         parse_mode="Markdown"
     )
 
-# ================= ПОШУК (APPLE MUSIC) =================
+# ================= ПОШУК (ДУЖЕ ШВИДКИЙ) =================
 def search_music(query):
-    url = "https://itunes.apple.com/search"
-    params = {
-        "term": query,
-        "media": "music",
-        "limit": 10
-    }
-
-    r = requests.get(url, params=params, timeout=6)
+    r = requests.get(
+        "https://itunes.apple.com/search",
+        params={"term": query, "media": "music", "limit": 25},
+        timeout=5
+    )
     data = r.json()
 
-    results = []
+    originals = []
+    remixes = []
+
+    remix_words = [
+        "remix", "phonk", "sped", "slowed",
+        "bass", "edit", "rework", "mix"
+    ]
+
+    seen = set()
+
     for item in data.get("results", []):
         artist = item.get("artistName")
         track = item.get("trackName")
@@ -57,15 +63,29 @@ def search_music(query):
             continue
 
         title = f"{artist} – {track}"
-        yt_query = f"{artist} {track}"
-        results.append((title, yt_query))
+        key = title.lower()
+        if key in seen:
+            continue
+        seen.add(key)
 
-    return results
+        yt_query = f"{artist} {track}"
+        lower = title.lower()
+
+        if any(w in lower for w in remix_words):
+            remixes.append((title, yt_query))
+        else:
+            originals.append((title, yt_query))
+
+    # ⬇️ ЧІТКЕ ПРАВИЛО
+    final = []
+    final.extend(originals[:3])   # ПЕРШІ 3 — ОРИГІНАЛИ
+    final.extend(remixes)         # ПОТІМ РЕМІКСИ
+
+    return final[:10]
 
 # ================= ЗАВАНТАЖЕННЯ =================
-def download_audio(chat_id, search_query):
+def download_audio(chat_id, query):
     try:
-        # чистимо старі файли
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
@@ -76,15 +96,15 @@ def download_audio(chat_id, search_query):
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{search_query}"
+                f"ytsearch1:{query}"
             ],
             check=True,
-            timeout=50
+            timeout=45
         )
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
-            bot.send_message(chat_id, "❌ Не вдалося отримати аудіо")
+            bot.send_message(chat_id, "❌ Не вдалося завантажити")
             return
 
         path = os.path.join(DOWNLOAD_DIR, files[0])
@@ -93,22 +113,21 @@ def download_audio(chat_id, search_query):
 
         os.remove(path)
 
-    except Exception:
+    except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
-# ================= ОБРОБКА ТЕКСТУ =================
+# ================= ТЕКСТ =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
     if chat_id in active_users:
-        bot.send_message(chat_id, "⏳ Зачекай, я ще працюю…")
+        bot.send_message(chat_id, "⏳ Зачекай…")
         return
 
     active_users.add(chat_id)
-
-    bot.send_message(chat_id, "🔍 Шукаю музику…")
+    bot.send_message(chat_id, "🔍 Шукаю…")
 
     try:
         results = search_music(text)
@@ -130,8 +149,7 @@ def handle_text(message):
         kb.add(
             InlineKeyboardButton(
                 text=f"{icon} {title[:60]}",
-                callback_data=str(i)
-            )
+                callback_data=str(i))
         )
 
     bot.send_photo(
@@ -159,5 +177,5 @@ def callback(c):
 
     user_results.pop(chat_id, None)
 
-print("BOT STARTED — STABLE MULTI-SOURCE")
+print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
