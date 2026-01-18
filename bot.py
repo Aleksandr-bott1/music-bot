@@ -9,61 +9,89 @@ import requests
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 
-# 🔴 ПРИМУСОВО ВИДАЛЯЄМО WEBHOOK
+# 🔴 примусово вимикаємо webhook (щоб не мовчав)
 requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
 
-# =====================
-# КАРТИНКИ
-# =====================
 IMAGES = [
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
 ]
 
-# =====================
-# AUDIO (ШВИДКО)
-# =====================
 YDL_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio",
     "quiet": True,
     "noplaylist": True,
+    "socket_timeout": 8,
     "outtmpl": "%(id)s.%(ext)s",
 }
 
 # =====================
-# ПОШУК (ПРОСТИЙ І НАДІЙНИЙ)
+# 🔎 НАДІЙНИЙ ПОШУК
 # =====================
 def search_music(query):
-    with YoutubeDL({
-        "quiet": True,
-        "default_search": "ytsearch10",
-        "noplaylist": True,
-    }) as ydl:
-        data = ydl.extract_info(query, download=False)
-        return data.get("entries", [])
+    try:
+        with YoutubeDL({
+            "quiet": True,
+            "default_search": "ytsearch25",
+            "noplaylist": True,
+            "socket_timeout": 8,
+        }) as ydl:
+            data = ydl.extract_info(query, download=False)
+            return data.get("entries", [])
+    except Exception:
+        return []
 
 # =====================
-# START
+# 🧠 ФІЛЬТР + ОРИГІНАЛ / РЕМІКС
+# =====================
+def prepare_results(results):
+    seen = set()
+    originals, remixes = [], []
+
+    remix_words = [
+        "remix", "slowed", "sped", "speed",
+        "bass", "reverb", "nightcore", "edit"
+    ]
+
+    for r in results:
+        vid = r.get("id")
+        title = (r.get("title") or "").lower()
+
+        if not vid or vid in seen:
+            continue
+
+        seen.add(vid)
+
+        if any(w in title for w in remix_words):
+            remixes.append(r)
+        else:
+            originals.append(r)
+
+    final = originals[:3] + remixes
+    return final[:10]
+
+# =====================
+# ▶️ START
 # =====================
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🎧 Музичний бот ПРАЦЮЄ\n\n"
-        "✍️ Просто напиши назву пісні\n"
-        "🔗 або встав TikTok-посилання"
+        "🎧 Музичний бот\n\n"
+        "✍️ Напиши назву пісні\n"
+        "🔗 або встав TikTok-посилання\n\n"
+        "🔥 1–3 оригінали → ремікси\n"
+        "⚡ Без зависань"
     )
 
 # =====================
-# ЄДИНИЙ HANDLER (НЕ МОВЧИТЬ)
+# 🟢 ЄДИНИЙ HANDLER
 # =====================
-@bot.message_handler(func=lambda m: True)
-def handle_all(message):
+@bot.message_handler(content_types=["text"])
+def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
-
-    bot.send_message(chat_id, "🔍 Шукаю...")
 
     # TikTok → чистимо
     if "tiktok.com" in text:
@@ -73,9 +101,16 @@ def handle_all(message):
     else:
         query = text
 
+    bot.send_message(chat_id, "🔍 Шукаю музику...")
+
     results = search_music(query)
     if not results:
         bot.send_message(chat_id, "❌ Не знайшов. Спробуй іншу назву.")
+        return
+
+    final = prepare_results(results)
+    if not final:
+        bot.send_message(chat_id, "❌ Нема унікальних треків.")
         return
 
     bot.send_photo(
@@ -86,7 +121,7 @@ def handle_all(message):
 
     keyboard = types.InlineKeyboardMarkup()
 
-    for i, r in enumerate(results[:10]):
+    for i, r in enumerate(final):
         title = (r.get("title") or "Без назви")
         title = title.split("(")[0].split("[")[0][:35]
         vid = r.get("id")
@@ -103,7 +138,7 @@ def handle_all(message):
     bot.send_message(chat_id, "👇 Список:", reply_markup=keyboard)
 
 # =====================
-# AUDIO
+# ⬇️ AUDIO
 # =====================
 @bot.callback_query_handler(func=lambda c: True)
 def send_audio(call):
@@ -124,7 +159,5 @@ def send_audio(call):
 
     os.remove(filename)
 
-# =====================
-# RUN
-# =====================
 bot.infinity_polling(skip_pending=True)
+
