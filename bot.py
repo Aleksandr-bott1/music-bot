@@ -105,7 +105,7 @@ def download_audio(chat_id, query):
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
+               f"ytsearch1:\"{query}\" official audio"
             ],
             check=True,
             timeout=45
@@ -188,5 +188,6 @@ def callback(c):
 
 print("BOT STARTED — FINAL STABLE VERSION")
 bot.infinity_polling(skip_pending=True)
+
 
 
