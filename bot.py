@@ -159,7 +159,6 @@ if chat_id not in stats[month]:
 
         if not results:
             bot.send_message(chat_id, "❌ Нічого не знайшов")
-            return
 
         user_results[chat_id] = results
 
@@ -211,6 +210,7 @@ def stats_cmd(message):
         f"📊 Статистика за {month}\n\n"
         f"👤 Унікальних користувачів: {count}"
     )
+
 
 
 
