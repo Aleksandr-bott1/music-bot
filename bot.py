@@ -139,7 +139,6 @@ def download_audio(chat_id, query):
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:bot.send_message(chat_id, "❌ Не вдалося завантажити")
-            return
 
         with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:
             bot.send_audio(chat_id, audio)
@@ -208,6 +207,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
