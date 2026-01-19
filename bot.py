@@ -189,6 +189,11 @@ def handle_text(message):
 def callback(c):
     chat_id = c.message.chat.id
 
+    # якщо вже щось вантажиться
+    if chat_id in active_users:
+        bot.answer_callback_query(c.id, "⏳ Уже завантажую, зачекай")
+        return
+
     if chat_id not in user_results:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
@@ -200,14 +205,17 @@ def callback(c):
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
+    active_users.add(chat_id)
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
+
     download_audio(chat_id, query)
 
+    active_users.discard(chat_id)
     user_results.pop(chat_id, None)
-
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
