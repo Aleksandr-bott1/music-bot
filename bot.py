@@ -58,9 +58,7 @@ def start(message):
         KeyboardButton("🔍 Пошук музики"),
         KeyboardButton("🔥 Просто напиши назву")
     )
-    kb.add(
-        KeyboardButton("📊 Статистика")
-    )
+    kb.add(KeyboardButton("📊 Статистика"))
 
     bot.send_message(
         message.chat.id,
@@ -70,7 +68,7 @@ def start(message):
         parse_mode="Markdown"
     )
 
-# ================= STATS COMMAND =================
+# ================= STATS =================
 @bot.message_handler(commands=["stats"])
 def stats_cmd(message):
     stats = load_stats()
@@ -116,8 +114,7 @@ def search_music(query):
     while len(originals) < 3 and others:
         originals.append(others.pop(0))
 
-    final = originals + others
-    return final[:10]
+    return (originals + others)[:10]
 
 # ================= DOWNLOAD =================
 def download_audio(chat_id, query):
@@ -128,26 +125,32 @@ def download_audio(chat_id, query):
         subprocess.run(
             [
                 "yt-dlp",
-                "-f", "bestaudio",
+                "-x",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
                 "--no-playlist",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
                 f"ytsearch1:{query}"
             ],
             check=True,
-            timeout=40
+            timeout=45
         )
 
-        files = os.listdir(DOWNLOAD_DIR)
-        if not
-files:bot.send_message(chat_id, "❌ Не вдалося завантажити")
+        files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
+        if not files:
+            bot.send_message(chat_id, "❌ Не вдалося завантажити")
+            return
 
-        with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:
+        path = os.path.join(DOWNLOAD_DIR, files[0])
+        with open(path, "rb") as audio:
             bot.send_audio(chat_id, audio)
 
-    except:
+        os.remove(path)
+
+    except Exception as e:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
-# ================= TEXT HANDLER =================
+# ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
@@ -180,7 +183,12 @@ def handle_text(message):
 
         for i, (title, _) in enumerate(results):
             icon = "🎵" if i < 3 else "🔥"
-            kb.add(InlineKeyboardButton(text=f"{icon} {title[:60]}", callback_data=str(i)))
+            kb.add(
+                InlineKeyboardButton(
+                    text=f"{icon} {title[:60]}",
+                    callback_data=str(i)
+                )
+            )
 
         bot.send_photo(
             chat_id,
@@ -206,9 +214,8 @@ def callback(c):
     download_audio(chat_id, query)
 
 # ================= RUN =================
-print("BOT STARTED — STABLE")
+print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
-
 
 
 
