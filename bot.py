@@ -209,7 +209,6 @@ print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
 
 
-)
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
@@ -280,6 +279,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
