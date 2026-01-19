@@ -139,7 +139,15 @@ def download_audio(chat_id, query):
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
+stats = load_stats()
+month = datetime.now().strftime("%Y-%m")
 
+if month not in stats:
+    stats[month] = []
+
+if chat_id not in stats[month]:
+    stats[month].append(chat_id)
+    save_stats(stats)
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
         return
@@ -193,6 +201,18 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED")
 bot.infinity_polling(skip_pending=True)
+@bot.message_handler(commands=["stats"])
+def stats_cmd(message):
+    stats = load_stats()
+    month = datetime.now().strftime("%Y-%m")
+    count = len(stats.get(month, []))
+
+    bot.send_message(
+        message.chat.id,
+        f"📊 Статистика за {month}\n\n"
+        f"👤 Унікальних користувачів: {count}"
+    )
+
 
 
 
