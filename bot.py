@@ -15,7 +15,6 @@ bot.delete_webhook(drop_pending_updates=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")
-
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
@@ -68,11 +67,12 @@ def start(message):
         f"👥 *Користувачів за місяць:* {count}\n\n"
         "✍️ Просто напиши назву пісні\n"
         "🎵 Перші — оригінали\n"
-        "🔥 Далі — ремікси",
+        "🔥 Далі — ремікси\n"
+        "📥 MP3 з перемоткою",
         parse_mode="Markdown"
     )
 
-# ================== STATS CMD ==================
+# ================== STATS ==================
 @bot.message_handler(commands=["stats"])
 def stats_cmd(message):
     count = get_month_users()
@@ -124,21 +124,19 @@ def search_music(query):
 # ================== DOWNLOAD ==================
 def download_audio(chat_id, query):
     try:
-        # очистка папки
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
         subprocess.run(
             [
                 "yt-dlp",
-                "-x",                      # ВИТЯГ АУДІО
-                "--audio-format", "mp3",   # MP3 = ПЕРЕМОТКА
+                "-x",
+                "--audio-format", "mp3",
                 "--audio-quality", "0",
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query} official audio"
-            ],
+                f"ytsearch1:{query} official audio"],
             check=True,
             timeout=60
         )
@@ -156,15 +154,6 @@ def download_audio(chat_id, query):
 
     except Exception as e:
         print("DOWNLOAD ERROR:", e)
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
-
-        files = os.listdir(DOWNLOAD_DIR)
-        if not files:bot.send_message(chat_id, "❌ Не вдалося завантажити")
-           
-        with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:
-            bot.send_audio(chat_id, audio)
-
-    except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
 # ================== TEXT ==================
@@ -220,24 +209,18 @@ def callback(c):
 
     try:
         idx = int(c.data)
-        title, query = user_results[chat_id][idx]
+        _, query = user_results[chat_id][idx]
     except:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, query)
-
-    # ❗ чистимо ТІЛЬКИ тут
     user_results.pop(chat_id, None)
 
 # ================== RUN ==================
-print("BOT STARTED — STABLE")
+print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
-
-
-
-
 
 
 
