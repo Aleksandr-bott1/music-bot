@@ -136,14 +136,38 @@ def handle_text(message):
         return
 
     active_users.add(chat_id)
-    bot.send_message(chat_id, "🔍 Шукаю…")
+bot.send_message(chat_id, "🔍 Шукаю…")
 
-    try:
-        results = search_music(text)
-    except:
-        bot.send_message(chat_id, "❌ Помилка пошуку")
-        active_users.remove(chat_id)
+try:
+    results = search_music(text)
+
+    if not results:
+        bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
+
+    user_results[chat_id] = results
+
+    kb = InlineKeyboardMarkup(row_width=1)
+    for i, (title, _) in enumerate(results):
+        icon = "🎵" if i < 3 else "🔥"
+        kb.add(
+            InlineKeyboardButton(
+                text=f"{icon} {title[:60]}",
+                callback_data=str(i)
+            )
+        )
+
+    bot.send_photo(
+        chat_id,
+        random.choice(PHOTOS),
+        caption="🎶 Обери трек:",
+        reply_markup=kb
+    )
+
+finally:
+    # ⬅️ ОСЬ ЦЕ ГОЛОВНЕ
+    active_users.discard(chat_id)
+
 
     if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
@@ -189,6 +213,7 @@ def callback(c):
 print("BOT STARTED — FINAL STABLE VERSION")
 
 bot.infinity_polling(skip_pending=True)
+
 
 
 
