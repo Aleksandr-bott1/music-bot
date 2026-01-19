@@ -154,18 +154,20 @@ def download_audio(chat_id, query):
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
-        subprocess.run(
-            [
-                "yt-dlp",
-                "-x", "--audio-format", "mp3",
-                "--no-playlist",
-                "--no-warnings",
-                "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
-            ],
-            check=True,
-            timeout=40
-        )
+       subprocess.run(
+    [
+        "yt-dlp",
+        "-x",
+        "--audio-format", "mp3",
+        "--audio-quality", "0",
+        "--no-playlist",
+        "--no-warnings",
+        "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
+        f"ytsearch1:{query}"
+    ],
+    check=True,
+    timeout=45
+)
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
@@ -236,6 +238,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL + SOUNDCLOUD")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
