@@ -5,7 +5,7 @@ import os
 import random
 import json
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
@@ -15,6 +15,7 @@ bot.delete_webhook(drop_pending_updates=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")
+
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
@@ -50,35 +51,24 @@ def register_user(chat_id):
         stats[month].append(chat_id)
         save_stats(stats)
 
+def get_month_users():
+    stats = load_stats()
+    month = datetime.now().strftime("%Y-%m")
+    return len(stats.get(month, []))
+
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(
-        KeyboardButton("🔍 Пошук музики"),
-        KeyboardButton("🔥 Просто напиши назву")
-    )
-    kb.add(KeyboardButton("📊 Статистика"))
+    register_user(message.chat.id)
+    count = get_month_users()
 
     bot.send_message(
         message.chat.id,
-        "🎵 *Музичний бот*\n\n"
-        "👇 Обери дію або просто напиши назву пісні:",
-        reply_markup=kb,
-        parse_mode="Markdown"
-    )
-
-# ================= STATS =================
-@bot.message_handler(commands=["stats"])
-def stats_cmd(message):
-    stats = load_stats()
-    month = datetime.now().strftime("%Y-%m")
-    count = len(stats.get(month, []))
-
-    bot.send_message(
-        message.chat.id,
-        f"📊 *Статистика за {month}*\n\n"
-        f"👤 Унікальних користувачів: *{count}*",
+        "🎵 *OnlineMyzik — музичний бот*\n\n"
+        f"👥 *Користувачів за місяць:* {count}\n\n"
+        "✍️ Просто напиши назву пісні\n"
+        "🎵 Перші — оригінали\n"
+        "🔥 Далі — ремікси",
         parse_mode="Markdown"
     )
 
@@ -91,8 +81,8 @@ def search_music(query):
 
     originals, others = [], []
     remix_words = ["remix", "phonk", "sped", "slowed", "bass", "edit", "mix"]
-
     seen = set()
+
     for item in data.get("results", []):
         artist = item.get("artistName")
         track = item.get("trackName")
@@ -106,6 +96,7 @@ def search_music(query):
         seen.add(key)
 
         yt_query = f"{artist} {track}"
+
         if len(originals) < 3 and not any(w in key for w in remix_words):
             originals.append((title, yt_query))
         else:
@@ -129,25 +120,25 @@ def download_audio(chat_id, query):
                 "--audio-format", "mp3",
                 "--audio-quality", "0",
                 "--no-playlist",
+                "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
+                f"ytsearch3:{query}"
             ],
             check=True,
-            timeout=45
+            timeout=60
         )
 
         files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
         if not files:
-            bot.send_message(chat_id, "❌ Не вдалося завантажити")
+            bot.send_message(chat_id, "❌ Не вдалося знайти аудіо")
             return
 
         path = os.path.join(DOWNLOAD_DIR, files[0])
         with open(path, "rb") as audio:
             bot.send_audio(chat_id, audio)
 
-        os.remove(path)
-
-    except Exception as e:
+        os.remove(path)except Exception as e:
+        print("DOWNLOAD ERROR:", e)
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
 # ================= TEXT =================
@@ -155,14 +146,6 @@ def download_audio(chat_id, query):
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
-
-    if text in ["🔍 Пошук музики", "🔥 Просто напиши назву"]:
-        bot.send_message(chat_id, "✍️ Напиши назву пісні")
-        return
-
-    if text == "📊 Статистика":
-        stats_cmd(message)
-        return
 
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
@@ -179,8 +162,8 @@ def handle_text(message):
             return
 
         user_results[chat_id] = results
-        kb = InlineKeyboardMarkup(row_width=1)
 
+        kb = InlineKeyboardMarkup(row_width=1)
         for i, (title, _) in enumerate(results):
             icon = "🎵" if i < 3 else "🔥"
             kb.add(
@@ -196,6 +179,7 @@ def handle_text(message):
             caption="🎶 Обери трек:",
             reply_markup=kb
         )
+
     finally:
         active_users.discard(chat_id)
 
@@ -203,15 +187,22 @@ def handle_text(message):
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
     chat_id = c.message.chat.id
-    idx = int(c.data)
 
     if chat_id not in user_results:
-        bot.answer_callback_query(c.id, "❌ Список застарів")
+        bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
-    _, query = user_results[chat_id][idx]
+    try:
+        idx = int(c.data)
+        _, query = user_results[chat_id][idx]
+    except:
+        bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
+        return
+
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, query)
+
+    user_results.pop(chat_id, None)
 
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
