@@ -154,32 +154,34 @@ def download_audio(chat_id, query):
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
-       subprocess.run(
-    [
-        "yt-dlp",
-        "-x",
-        "--audio-format", "mp3",
-        "--audio-quality", "0",
-        "--no-playlist",
-        "--no-warnings",
-        "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-        f"ytsearch1:{query}"
-    ],
-    check=True,
-    timeout=45
-)
+        subprocess.run(
+            [
+                "yt-dlp",
+                "-x",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
+                "--no-playlist",
+                "--no-warnings",
+                "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
+                f"ytsearch1:{query}"
+            ],
+            check=True,
+            timeout=45
+        )
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:
             bot.send_message(chat_id, "❌ Не вдалося завантажити")
             return
 
-        with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:
+        path = os.path.join(DOWNLOAD_DIR, files[0])
+        with open(path, "rb") as audio:
             bot.send_audio(chat_id, audio)
 
-    except:
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+        os.remove(path)
 
+    except Exception as e:
+        bot.send_message(chat_id, "❌ Помилка при завантаженні")
 # ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
@@ -238,6 +240,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL + SOUNDCLOUD")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
