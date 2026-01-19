@@ -209,6 +209,77 @@ print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
 
 
+)
+
+        files = os.listdir(DOWNLOAD_DIR)
+        if not files:
+            bot.send_message(chat_id, "❌ Не вдалося завантажити")
+            return
+
+        with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:
+            bot.send_audio(chat_id, audio)
+
+    except:
+        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+
+# ================= TEXT =================
+@bot.message_handler(func=lambda m: True)
+def handle_text(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
+
+    if chat_id in active_users:
+        bot.send_message(chat_id, "⏳ Зачекай…")
+        return
+
+    active_users.add(chat_id)
+    register_user(chat_id)
+    bot.send_message(chat_id, "🔍 Шукаю…")
+
+    try:
+        results = search_music(text)
+        if not results:
+            bot.send_message(chat_id, "❌ Нічого не знайшов")
+            return
+
+        user_results[chat_id] = results
+        kb = InlineKeyboardMarkup(row_width=1)
+
+        for i, (title, _) in enumerate(results):
+            icon = "🎵" if i < 3 else "🔥"
+            kb.add(
+                InlineKeyboardButton(
+                    text=f"{icon} {title[:60]}",
+                    callback_data=str(i)
+                )
+            )
+
+        bot.send_photo(
+            chat_id,
+            random.choice(PHOTOS),
+            caption="🎶 Обери трек:",
+            reply_markup=kb
+        )
+    finally:
+        active_users.discard(chat_id)
+
+# ================= CALLBACK =================
+@bot.callback_query_handler(func=lambda c: True)
+def callback(c):
+    chat_id = c.message.chat.id
+    idx = int(c.data)
+
+    if chat_id not in user_results:
+        bot.answer_callback_query(c.id, "❌ Список застарів")
+        return
+
+    _, query = user_results[chat_id][idx]
+    bot.answer_callback_query(c.id, "⏳ Завантажую…")
+    download_audio(chat_id, query)
+
+# ================= RUN =================
+print("BOT STARTED — FINAL STABLE")
+bot.infinity_polling(skip_pending=True)
 
 
 
