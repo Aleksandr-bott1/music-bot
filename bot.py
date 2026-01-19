@@ -3,6 +3,8 @@ import requests
 import subprocess
 import os
 import random
+import json
+from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
@@ -12,6 +14,7 @@ bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATS_FILE = os.path.join(BASE_DIR, "stats.json")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -26,6 +29,18 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
     "https://images.unsplash.com/photo-1470225620780-dba8ba36b745",
 ]
+def load_stats():
+    if not os.path.exists(STATS_FILE):
+        return {}
+    try:
+        with open(STATS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_stats(data):
+    with open(STATS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 # ================= START =================
 @bot.message_handler(commands=["start"])
@@ -213,6 +228,7 @@ def callback(c):
 print("BOT STARTED — FINAL STABLE VERSION")
 
 bot.infinity_polling(skip_pending=True)
+
 
 
 
