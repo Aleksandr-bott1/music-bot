@@ -124,21 +124,39 @@ def search_music(query):
 # ================== DOWNLOAD ==================
 def download_audio(chat_id, query):
     try:
+        # очистка папки
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
         subprocess.run(
             [
                 "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
+                "-x",                      # ВИТЯГ АУДІО
+                "--audio-format", "mp3",   # MP3 = ПЕРЕМОТКА
+                "--audio-quality", "0",
                 "--no-playlist",
+                "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
+                f"ytsearch1:{query} official audio"
             ],
             check=True,
-            timeout=45
+            timeout=60
         )
+
+        files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
+        if not files:
+            bot.send_message(chat_id, "❌ Не вдалося завантажити mp3")
+            return
+
+        path = os.path.join(DOWNLOAD_DIR, files[0])
+        with open(path, "rb") as audio:
+            bot.send_audio(chat_id, audio)
+
+        os.remove(path)
+
+    except Exception as e:
+        print("DOWNLOAD ERROR:", e)
+        bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
         files = os.listdir(DOWNLOAD_DIR)
         if not files:bot.send_message(chat_id, "❌ Не вдалося завантажити")
@@ -216,6 +234,7 @@ def callback(c):
 # ================== RUN ==================
 print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
