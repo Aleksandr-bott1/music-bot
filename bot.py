@@ -5,7 +5,7 @@ import os
 import random
 import json
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
@@ -15,7 +15,6 @@ bot.delete_webhook(drop_pending_updates=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")
-
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
@@ -51,65 +50,49 @@ def register_user(chat_id):
         stats[month].append(chat_id)
         save_stats(stats)
 
-def get_month_users():
-    stats = load_stats()
-    month = datetime.now().strftime("%Y-%m")
-    return len(stats.get(month, []))
-
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
-    register_user(message.chat.id)
-    count = get_month_users()
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
+        KeyboardButton("🔍 Пошук музики"),
+        KeyboardButton("🔥 Просто напиши назву")
+    )
+    kb.add(KeyboardButton("📊 Статистика"))
 
     bot.send_message(
         message.chat.id,
-        "🎵 *OnlineMyzik — музичний бот*\n\n"
-        f"👥 *Користувачів цього місяця:* {count}\n\n"
-        "✍️ Напиши назву пісні з TikTok / YouTube\n"
-        "🎵 Перші — оригінали\n"
-        "🔥 Далі — ремікси\n"
-        "📥 Можна завантажити mp3",
+        "🎵 *Музичний бот*\n\n"
+        "👇 Обери дію або просто напиши назву пісні:",
+        reply_markup=kb,
         parse_mode="Markdown"
     )
 
-# ================= SEARCH: SoundCloud =================
-def search_soundcloud(query, limit=10):
-    try:
-        output = subprocess.check_output(
-            [
-                "yt-dlp",
-                "--print", "title",
-                "--print", "webpage_url",
-                f"scsearch{limit}:{query}"
-            ],
-            text=True,
-            timeout=8
-        )
-        lines = output.strip().split("\n")
-        results = []
-        for i in range(0, len(lines), 2):
-            title = lines[i]
-            results.append((title, title))
-        return results
-    except:
-        return []
+# ================= STATS =================
+@bot.message_handler(commands=["stats"])
+def stats_cmd(message):
+    stats = load_stats()
+    month = datetime.now().strftime("%Y-%m")
+    count = len(stats.get(month, []))
 
-# ================= SEARCH: iTunes + SoundCloud =================
+    bot.send_message(
+        message.chat.id,
+        f"📊 *Статистика за {month}*\n\n"
+        f"👤 Унікальних користувачів: *{count}*",
+        parse_mode="Markdown"
+    )
+
+# ================= SEARCH =================
 def search_music(query):
+    url = "https://itunes.apple.com/search"
+    params = {"term": query, "media": "music", "limit": 30}
+    r = requests.get(url, params=params, timeout=6)
+    data = r.json()
+
     originals, others = [], []
     remix_words = ["remix", "phonk", "sped", "slowed", "bass", "edit", "mix"]
+
     seen = set()
-
-    # ---------- iTunes ----------
-    try:
-        url = "https://itunes.apple.com/search"
-        params = {"term": query, "media": "music", "limit": 30}
-        r = requests.get(url, params=params, timeout=6)
-        data = r.json()
-    except:
-        data = {}
-
     for item in data.get("results", []):
         artist = item.get("artistName")
         track = item.get("trackName")
@@ -123,7 +106,6 @@ def search_music(query):
         seen.add(key)
 
         yt_query = f"{artist} {track}"
-
         if len(originals) < 3 and not any(w in key for w in remix_words):
             originals.append((title, yt_query))
         else:
@@ -132,21 +114,7 @@ def search_music(query):
     while len(originals) < 3 and others:
         originals.append(others.pop(0))
 
-    final = originals + others
-
-    # ---------- SoundCloud fallback ----------
-    if len(final) < 3:
-        try:
-            sc_results = search_soundcloud(query, limit=10)
-            for title, yt_query in sc_results:
-                if title.lower() not in seen:
-                    final.append((title, yt_query))
-                if len(final) >= 10:
-                    break
-        except:
-            pass
-
-    return final[:10]
+    return (originals + others)[:10]
 
 # ================= DOWNLOAD =================
 def download_audio(chat_id, query):
@@ -161,26 +129,14 @@ def download_audio(chat_id, query):
                 "--audio-format", "mp3",
                 "--audio-quality", "0",
                 "--no-playlist",
-                "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch5:{query}"
+                f"ytsearch1:{query}"
             ],
             check=True,
             timeout=45
         )
-subprocess.run(
-    [
-        "yt-dlp",
-        "-f", "bestaudio[ext=m4a]/bestaudio",
-        "--no-playlist",
-        "--no-warnings",
-        "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-        f"ytsearch1:{query}"
-    ],
-    check=True,
-    timeout=40
-)
-        files = os.listdir(DOWNLOAD_DIR)
+
+        files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
         if not files:
             bot.send_message(chat_id, "❌ Не вдалося завантажити")
             return
@@ -193,11 +149,20 @@ subprocess.run(
 
     except Exception as e:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
+
 # ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
+
+    if text in ["🔍 Пошук музики", "🔥 Просто напиши назву"]:
+        bot.send_message(chat_id, "✍️ Напиши назву пісні")
+        return
+
+    if text == "📊 Статистика":
+        stats_cmd(message)
+        return
 
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
@@ -249,10 +214,8 @@ def callback(c):
     download_audio(chat_id, query)
 
 # ================= RUN =================
-print("BOT STARTED — FINAL + SOUNDCLOUD")
+print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
-
-
 
 
 
