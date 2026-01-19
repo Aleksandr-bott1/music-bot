@@ -139,17 +139,21 @@ def download_audio(chat_id, query):
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
-stats = load_stats()
-month = datetime.now().strftime("%Y-%m")
 
-if month not in stats:
-    stats[month] = []
+    # --- статистика ---
+    stats = load_stats()
+    month = datetime.now().strftime("%Y-%m")
 
-if chat_id not in stats[month]:
-    stats[month].append(chat_id)
-    save_stats(stats)
+    if month not in stats:
+        stats[month] = []
+
+    if chat_id not in stats[month]:
+        stats[month].append(chat_id)
+        save_stats(stats)
+
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
+        return
 
     active_users.add(chat_id)
     bot.send_message(chat_id, "🔍 Шукаю…")
@@ -159,6 +163,7 @@ if chat_id not in stats[month]:
 
         if not results:
             bot.send_message(chat_id, "❌ Нічого не знайшов")
+            return
 
         user_results[chat_id] = results
 
@@ -196,9 +201,7 @@ def callback(c):
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, query)
 
-# ================= RUN =================
-print("BOT STARTED")
-bot.infinity_polling(skip_pending=True)
+# ================= STATS COMMAND =================
 @bot.message_handler(commands=["stats"])
 def stats_cmd(message):
     stats = load_stats()
@@ -210,6 +213,10 @@ def stats_cmd(message):
         f"📊 Статистика за {month}\n\n"
         f"👤 Унікальних користувачів: {count}"
     )
+
+# ================= RUN =================
+print("BOT STARTED")
+bot.infinity_polling(skip_pending=True)
 
 
 
