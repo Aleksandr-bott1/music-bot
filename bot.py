@@ -8,14 +8,14 @@ from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
-print("FILE LOADED")
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATS_FILE = os.path.join(BASE_DIR, "stats.json")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
+STATS_FILE = os.path.join(BASE_DIR, "stats.json")
+
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
@@ -29,6 +29,8 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1506157786151-b8491531f063",
     "https://images.unsplash.com/photo-1470225620780-dba8ba36b745",
 ]
+
+# ================= STATS =================
 def load_stats():
     if not os.path.exists(STATS_FILE):
         return {}
@@ -51,7 +53,7 @@ def start(message):
         "✍️ Напиши назву пісні — я знайду mp3"
     )
 
-# ================= ПОШУК (ДУЖЕ ШВИДКИЙ) =================
+# ================= ПОШУК =================
 def search_music(query):
     url = "https://itunes.apple.com/search"
     params = {
@@ -88,26 +90,18 @@ def search_music(query):
         yt_query = f"{artist} {track}"
         lower = title.lower()
 
-        # ПЕРШІ 3 — СТРОГО ОРИГІНАЛИ
         if len(originals) < 3 and not any(w in lower for w in remix_words):
             originals.append((title, yt_query))
         else:
             others.append((title, yt_query))
 
-    # якщо оригіналів менше 3 — добираємо
     while len(originals) < 3 and others:
         originals.append(others.pop(0))
 
     final = originals + others
-
-    # гарантуємо 10 результатів
-    while len(final) < 10:
-        final.append((query, query))
-
     return final[:10]
-    
 
-# ================= ЗАВАНТАЖЕННЯ =================
+# ================= DOWNLOAD =================
 def download_audio(chat_id, query):
     try:
         for f in os.listdir(DOWNLOAD_DIR):
@@ -120,10 +114,10 @@ def download_audio(chat_id, query):
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-               f"ytsearch1:\"{query}\" official audio"
+                f"ytsearch1:{query}"
             ],
             check=True,
-            timeout=45
+            timeout=40
         )
 
         files = os.listdir(DOWNLOAD_DIR)
@@ -140,7 +134,7 @@ def download_audio(chat_id, query):
     except:
         bot.send_message(chat_id, "❌ Помилка при завантаженні")
 
-# ================= ТЕКСТ =================
+# ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
@@ -151,64 +145,38 @@ def handle_text(message):
         return
 
     active_users.add(chat_id)
-bot.send_message(chat_id, "🔍 Шукаю…")
+    bot.send_message(chat_id, "🔍 Шукаю…")
 
-try:
-    results = search_music(text)
+    try:
+        results = search_music(text)
 
-    if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
-        return
+        if not results:
+            bot.send_message(chat_id, "❌ Нічого не знайшов")
+            return
 
-   user_results[chat_id] = results
+        user_results[chat_id] = results
 
-kb = InlineKeyboardMarkup(row_width=1)
-for i, (title, _) in enumerate(results):
-    icon = "🎵" if i < 3 else "🔥"
-    kb.add(
-        InlineKeyboardButton(
-            text=f"{icon} {title[:60]}",
-            callback_data=str(i)
-        )
-    )
-    bot.send_photo(
-        chat_id,
-        random.choice(PHOTOS),
-        caption="🎶 Обери трек:",
-        reply_markup=kb
-    )
+        kb = InlineKeyboardMarkup(row_width=1)
+        for i, (title, _) in enumerate(results):
+            icon = "🎵" if i < 3 else "🔥"
+            kb.add(
+                InlineKeyboardButton(
+                    text=f"{icon} {title[:60]}",
+                    callback_data=str(i)
+                )
+            )
 
-finally:
-    # ⬅️ ОСЬ ЦЕ ГОЛОВНЕ
-    active_users.discard(chat_id)
-
-
-    if not results:
-        bot.send_message(chat_id, "❌ Нічого не знайшов")
-        active_users.remove(chat_id)
-        return
-
-    user_results[chat_id] = results
-
-    kb = InlineKeyboardMarkup(row_width=1)
-    for i, (title, _) in enumerate(results):
-        icon = "🎵" if i < 3 else "🔥"
-        kb.add(
-            InlineKeyboardButton(
-                text=f"{icon} {title[:60]}",
-                callback_data=str(i))
+        bot.send_photo(
+            chat_id,
+            random.choice(PHOTOS),
+            caption="🎶 Обери трек:",
+            reply_markup=kb
         )
 
-    bot.send_photo(
-        chat_id,
-        random.choice(PHOTOS),
-        caption="🎶 Обери трек:",
-        reply_markup=kb
-    )
+    finally:
+        active_users.discard(chat_id)
 
-    active_users.remove(chat_id)
-
-# ================= КНОПКИ =================
+# ================= CALLBACK =================
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
     chat_id = c.message.chat.id
@@ -222,11 +190,10 @@ def callback(c):
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
     download_audio(chat_id, query)
 
-   
-
-print("BOT STARTED — FINAL STABLE VERSION")
-
+# ================= RUN =================
+print("BOT STARTED")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
