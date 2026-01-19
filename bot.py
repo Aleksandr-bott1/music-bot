@@ -153,7 +153,7 @@ def download_audio(chat_id, query):
         subprocess.run(
             [
                 "yt-dlp",
-                "-f", "bestaudio",
+                "-x", "--audio-format", "mp3",
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
@@ -232,6 +232,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL + SOUNDCLOUD")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
