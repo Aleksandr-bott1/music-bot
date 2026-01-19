@@ -97,18 +97,18 @@ def search_soundcloud(query, limit=10):
 
 # ================= SEARCH: iTunes + SoundCloud =================
 def search_music(query):
-    url = "https://itunes.apple.com/search"
-    params = {"term": query, "media": "music", "limit": 30}
+    originals, others = [], []
+    remix_words = ["remix", "phonk", "sped", "slowed", "bass", "edit", "mix"]
+    seen = set()
 
+    # ---------- iTunes ----------
     try:
+        url = "https://itunes.apple.com/search"
+        params = {"term": query, "media": "music", "limit": 30}
         r = requests.get(url, params=params, timeout=6)
         data = r.json()
     except:
         data = {}
-
-    originals, others = [], []
-    remix_words = ["remix", "phonk", "sped", "slowed", "bass", "edit", "mix"]
-    seen = set()
 
     for item in data.get("results", []):
         artist = item.get("artistName")
@@ -134,13 +134,17 @@ def search_music(query):
 
     final = originals + others
 
-    # 🔥 ДОБИРАЄМО З SOUNDCLOUD
-    if len(final) < 10:
-        sc_results = search_soundcloud(query, limit=10)
-        for title, yt_query in sc_results:
-            if len(final) >= 10:
-                break
-            final.append((title, yt_query))
+    # ---------- SoundCloud fallback ----------
+    if len(final) < 3:
+        try:
+            sc_results = search_soundcloud(query, limit=10)
+            for title, yt_query in sc_results:
+                if title.lower() not in seen:
+                    final.append((title, yt_query))
+                if len(final) >= 10:
+                    break
+        except:
+            pass
 
     return final[:10]
 
@@ -232,6 +236,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL + SOUNDCLOUD")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
