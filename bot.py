@@ -160,18 +160,17 @@ try:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
 
-    user_results[chat_id] = results
+   user_results[chat_id] = results
 
-    kb = InlineKeyboardMarkup(row_width=1)
-    for i, (title, _) in enumerate(results):
-        icon = "🎵" if i < 3 else "🔥"
-        kb.add(
-            InlineKeyboardButton(
-                text=f"{icon} {title[:60]}",
-                callback_data=str(i)
-            )
+kb = InlineKeyboardMarkup(row_width=1)
+for i, (title, _) in enumerate(results):
+    icon = "🎵" if i < 3 else "🔥"
+    kb.add(
+        InlineKeyboardButton(
+            text=f"{icon} {title[:60]}",
+            callback_data=str(i)
         )
-
+    )
     bot.send_photo(
         chat_id,
         random.choice(PHOTOS),
@@ -228,6 +227,7 @@ def callback(c):
 print("BOT STARTED — FINAL STABLE VERSION")
 
 bot.infinity_polling(skip_pending=True)
+
 
 
 
