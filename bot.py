@@ -163,7 +163,7 @@ def download_audio(chat_id, query):
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
+                f"ytsearch5:{query}"
             ],
             check=True,
             timeout=45
@@ -240,6 +240,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL + SOUNDCLOUD")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
