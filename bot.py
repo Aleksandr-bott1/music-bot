@@ -150,7 +150,6 @@ if chat_id not in stats[month]:
     save_stats(stats)
     if chat_id in active_users:
         bot.send_message(chat_id, "⏳ Зачекай…")
-        return
 
     active_users.add(chat_id)
     bot.send_message(chat_id, "🔍 Шукаю…")
@@ -212,6 +211,7 @@ def stats_cmd(message):
         f"📊 Статистика за {month}\n\n"
         f"👤 Унікальних користувачів: {count}"
     )
+
 
 
 
