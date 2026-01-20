@@ -2,12 +2,11 @@ import telebot
 import requests
 import subprocess
 import os
-import random
 import json
 from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "ТУТ_ТВІЙ_ТОКЕН"
+TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
@@ -19,23 +18,12 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
 
-PHOTOS = [
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-    "https://images.unsplash.com/photo-1506157786151-b8491531f063",
-    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745",
-]
-
-# ================= STATS =================
+# ====== STATS ======
 def load_stats():
     if not os.path.exists(STATS_FILE):
         return {}
-    try:
-        with open(STATS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
+    with open(STATS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 def save_stats(data):
     with open(STATS_FILE, "w", encoding="utf-8") as f:
@@ -49,25 +37,25 @@ def register_user(chat_id):
         stats[month].append(chat_id)
         save_stats(stats)
 
-def get_month_users():
+def month_users():
     stats = load_stats()
     return len(stats.get(datetime.now().strftime("%Y-%m"), []))
 
-# ================= START =================
+# ====== START ======
 @bot.message_handler(commands=["start"])
 def start(message):
     register_user(message.chat.id)
     bot.send_message(
         message.chat.id,
-        "🎵 *OnlineMyzik — музичний бот*\n\n"
-        f"👥 *Користувачів за місяць:* {get_month_users()}\n\n"
+        "🎵 *OnlineMyzik*\n\n"
+        f"👥 Користувачів за місяць: *{month_users()}*\n\n"
         "✍️ Напиши назву пісні\n"
         "🎵 1–3 — оригінали\n"
         "🔥 далі — ремікси",
         parse_mode="Markdown"
     )
 
-# ================= SEARCH =================
+# ====== SEARCH ======
 def search_music(query):
     data = requests.get(
         "https://itunes.apple.com/search",
@@ -98,12 +86,11 @@ def search_music(query):
 
     return (originals + remixes)[:10]
 
-# ================= DOWNLOAD =================
+# ====== DOWNLOAD ======
 def download_mp3(chat_id, query):
     filename = query.replace(" ", "_")[:60] + ".mp3"
     path = os.path.join(DOWNLOAD_DIR, filename)
 
-    # кеш
     if os.path.exists(path):
         with open(path, "rb") as audio:
             bot.send_audio(chat_id, audio)
@@ -125,7 +112,7 @@ def download_mp3(chat_id, query):
             timeout=60
         )
     except:
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+        bot.send_message(chat_id, "❌ Помилка завантаження")
         return
 
     if not os.path.exists(path):
@@ -135,14 +122,15 @@ def download_mp3(chat_id, query):
     with open(path, "rb") as audio:
         bot.send_audio(chat_id, audio)
 
-# ================= TEXT =================
+# ====== TEXT ======
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
     register_user(chat_id)
-    bot.send_message(chat_id, "🔍 Шукаю…")
 
+    bot.send_message(chat_id, "🔍 Шукаю…")
     results = search_music(message.text)
+
     if not results:
         bot.send_message(chat_id, "❌ Нічого не знайшов")
         return
@@ -152,25 +140,14 @@ def handle_text(message):
 
     for i, (title, _) in enumerate(results):
         icon = "🎵" if i < 3 else "🔥"
-        kb.add(
-            InlineKeyboardButton(
-                f"{icon} {title[:45]}",
-                callback_data=str(i)
-            )
-        )
+        kb.add(InlineKeyboardButton(f"{icon} {title[:45]}", callback_data=str(i)))
 
-    bot.send_photo(
-        chat_id,
-        random.choice(PHOTOS),
-        "🎶 Обери трек:",
-        reply_markup=kb
-    )
+    bot.send_message(chat_id, "🎶 Обери трек:", reply_markup=kb)
 
-# ================= CALLBACK =================
+# ====== CALLBACK ======
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
     chat_id = c.message.chat.id
-
     if chat_id not in user_results:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
@@ -186,7 +163,7 @@ def callback(c):
     download_mp3(chat_id, query)
     user_results.pop(chat_id, None)
 
-# ================= RUN =================
+# ====== RUN ======
 print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
 
