@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "8145219838:AAGkYaV13RtbAItOuPNt0Fp3bYyQI0msil4"
+TOKEN = "ТУТ_ТВІЙ_ТОКЕН"
 
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook(drop_pending_updates=True)
@@ -18,7 +18,6 @@ STATS_FILE = os.path.join(BASE_DIR, "stats.json")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
-active_downloads = set()
 
 PHOTOS = [
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
@@ -28,7 +27,7 @@ PHOTOS = [
     "https://images.unsplash.com/photo-1470225620780-dba8ba36b745",
 ]
 
-# ---------- STATS ----------
+# ================= STATS =================
 def load_stats():
     if not os.path.exists(STATS_FILE):
         return {}
@@ -54,21 +53,21 @@ def get_month_users():
     stats = load_stats()
     return len(stats.get(datetime.now().strftime("%Y-%m"), []))
 
-# ---------- START ----------
+# ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
     register_user(message.chat.id)
     bot.send_message(
         message.chat.id,
-        f"🎵 *OnlineMyzik*\n\n"
-        f"👥 Користувачів за місяць: *{get_month_users()}*\n\n"
+        "🎵 *OnlineMyzik — музичний бот*\n\n"
+        f"👥 *Користувачів за місяць:* {get_month_users()}\n\n"
         "✍️ Напиши назву пісні\n"
         "🎵 1–3 — оригінали\n"
         "🔥 далі — ремікси",
         parse_mode="Markdown"
     )
 
-# ---------- SEARCH ----------
+# ================= SEARCH =================
 def search_music(query):
     data = requests.get(
         "https://itunes.apple.com/search",
@@ -91,59 +90,56 @@ def search_music(query):
             continue
         seen.add(key)
 
-        query = f"{artist} {track}"
+        q = f"{artist} {track}"
         if len(originals) < 3 and not any(w in key for w in remix_words):
-            originals.append((title, query))
+            originals.append((title, q))
         else:
-            remixes.append((title, query))
+            remixes.append((title, q))
 
     return (originals + remixes)[:10]
 
-# ---------- DOWNLOAD ----------
+# ================= DOWNLOAD =================
 def download_mp3(chat_id, query):
-    try:
-        filename = query.replace(" ", "_")[:60] + ".mp3"
-        path = os.path.join(DOWNLOAD_DIR, filename)
+    filename = query.replace(" ", "_")[:60] + ".mp3"
+    path = os.path.join(DOWNLOAD_DIR, filename)
 
-        # КЕШ
-        if os.path.exists(path):
-            with open(path, "rb") as audio:
-                bot.send_audio(chat_id, audio)
-            return
-
-        for source in [f"ytsearch1:{query} official audio", f"scsearch1:{query}"]:
-            try:
-                subprocess.run(
-                    [
-                        "yt-dlp",
-                        "-x",
-                        "--audio-format", "mp3",
-                        "--audio-quality", "0",
-                        "--no-playlist",
-                        "-o", path,
-                        source
-                    ],
-                    check=True,
-                    timeout=60
-                )
-                break
-            except:
-                continue
-
-        if not os.path.exists(path):
-            bot.send_message(chat_id, "❌ Не вдалося завантажити")
-            return
-
+    # кеш
+    if os.path.exists(path):
         with open(path, "rb") as audio:
             bot.send_audio(chat_id, audio)
+        return
 
-    finally:
-        active_downloads.discard(chat_id)
+    try:
+        subprocess.run(
+            [
+                "yt-dlp",
+                "-x",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
+                "--no-playlist",
+                "--no-warnings",
+                "-o", path,
+                f"ytsearch1:{query} official audio"
+            ],
+            check=True,
+            timeout=60
+        )
+    except:
+        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+        return
 
-# ---------- TEXT ----------
+    if not os.path.exists(path):
+        bot.send_message(chat_id, "❌ Не вдалося завантажити")
+        return
+
+    with open(path, "rb") as audio:
+        bot.send_audio(chat_id, audio)
+
+# ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
+    register_user(chat_id)
     bot.send_message(chat_id, "🔍 Шукаю…")
 
     results = search_music(message.text)
@@ -152,44 +148,48 @@ def handle_text(message):
         return
 
     user_results[chat_id] = results
-    kb = InlineKeyboardMarkup(row_width=2)
+    kb = InlineKeyboardMarkup(row_width=1)
 
     for i, (title, _) in enumerate(results):
         icon = "🎵" if i < 3 else "🔥"
         kb.add(
-            InlineKeyboardButton(f"{icon} {title[:35]}", callback_data=f"dl_{i}"),
-            InlineKeyboardButton("🎧 Швидко", callback_data=f"fast_{i}")
+            InlineKeyboardButton(
+                f"{icon} {title[:45]}",
+                callback_data=str(i)
+            )
         )
 
-    bot.send_photo(chat_id, random.choice(PHOTOS), "🎶 Обери трек:", reply_markup=kb)
+    bot.send_photo(
+        chat_id,
+        random.choice(PHOTOS),
+        "🎶 Обери трек:",
+        reply_markup=kb
+    )
 
-# ---------- CALLBACK ----------
+# ================= CALLBACK =================
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
     chat_id = c.message.chat.id
+
     if chat_id not in user_results:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
-    action, idx = c.data.split("_")
-    title, query = user_results[chat_id][int(idx)]
-
-    if action == "fast":
-        bot.answer_callback_query(c.id)
-        bot.send_message(chat_id, f"🎧 {title}")
+    try:
+        idx = int(c.data)
+        _, query = user_results[chat_id][idx]
+    except:
+        bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
-    if chat_id in active_downloads:
-        bot.answer_callback_query(c.id, "⏳ Уже завантажую")
-        return
-
-    active_downloads.add(chat_id)
     bot.answer_callback_query(c.id, "📥 Завантажую…")
     download_mp3(chat_id, query)
+    user_results.pop(chat_id, None)
 
-# ---------- RUN ----------
+# ================= RUN =================
 print("BOT STARTED — STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
