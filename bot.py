@@ -107,7 +107,7 @@ def search_music(query):
 
     return (originals + others)[:10]
 
-# ================= DOWNLOAD =================
+# ================= DOWNLOAD (MP3 + ПЕРЕМОТКА) =================
 def download_audio(chat_id, query):
     try:
         for f in os.listdir(DOWNLOAD_DIR):
@@ -116,26 +116,26 @@ def download_audio(chat_id, query):
         subprocess.run(
             [
                 "yt-dlp",
-                "-f", "bestaudio[ext=m4a]/bestaudio",
+                "-x",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
                 "--no-playlist",
                 "--no-warnings",
                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query}"
+                f"ytsearch1:{query} official audio"
             ],
             check=True,
             timeout=60
         )
 
-        files = os.listdir(DOWNLOAD_DIR)
+        files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
         if not files:
-            bot.send_message(chat_id, "❌ Не вдалося завантажити")
+            bot.send_message(chat_id, "❌ Не вдалося завантажити mp3")
             return
 
         path = os.path.join(DOWNLOAD_DIR, files[0])
         with open(path, "rb") as audio:
-            bot.send_audio(chat_id, audio)
-
-        os.remove(path)
+            bot.send_audio(chat_id, audio)os.remove(path)
 
     except Exception as e:
         print("DOWNLOAD ERROR:", e)
@@ -188,11 +188,6 @@ def handle_text(message):
 def callback(c):
     chat_id = c.message.chat.id
 
-    # якщо вже щось вантажиться
-    if chat_id in active_users:
-        bot.answer_callback_query(c.id, "⏳ Уже завантажую, зачекай")
-        return
-
     if chat_id not in user_results:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
@@ -204,23 +199,13 @@ def callback(c):
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
-    active_users.add(chat_id)
     bot.answer_callback_query(c.id, "⏳ Завантажую…")
-
     download_audio(chat_id, query)
-
-    active_users.discard(chat_id)
     user_results.pop(chat_id, None)
+
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
-
-
-
-
-
-
-
 
 
 
