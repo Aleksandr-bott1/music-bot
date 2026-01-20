@@ -15,11 +15,10 @@ bot.delete_webhook(drop_pending_updates=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "music")
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")
-
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 user_results = {}
-active_users = set()
+active_downloads = set()
 
 PHOTOS = [
     "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4",
@@ -33,11 +32,8 @@ PHOTOS = [
 def load_stats():
     if not os.path.exists(STATS_FILE):
         return {}
-    try:
-        with open(STATS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
+    with open(STATS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 def save_stats(data):
     with open(STATS_FILE, "w", encoding="utf-8") as f:
@@ -53,160 +49,141 @@ def register_user(chat_id):
 
 def get_month_users():
     stats = load_stats()
-    month = datetime.now().strftime("%Y-%m")
-    return len(stats.get(month, []))
+    return len(stats.get(datetime.now().strftime("%Y-%m"), []))
 
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(message):
     register_user(message.chat.id)
-    count = get_month_users()
-
     bot.send_message(
         message.chat.id,
         "🎵 *OnlineMyzik — музичний бот*\n\n"
-        f"👥 *Користувачів за місяць:* {count}\n\n"
-        "✍️ Просто напиши назву пісні\n"
+        f"👥 *Користувачів за місяць:* {get_month_users()}\n\n"
+        "✍️ Напиши назву пісні\n"
         "🎵 Перші — оригінали\n"
-        "🔥 Далі — ремікси",
+        "🔥 Далі — ремікси\n"
+        "🎧 Є швидкий режим",
         parse_mode="Markdown"
     )
 
 # ================= SEARCH =================
 def search_music(query):
-    url = "https://itunes.apple.com/search"
-    params = {"term": query, "media": "music", "limit": 30}
-    r = requests.get(url, params=params, timeout=6)
-    data = r.json()
+    r = requests.get(
+        "https://itunes.apple.com/search",
+        params={"term": query, "media": "music", "limit": 30},
+        timeout=6
+    ).json()
 
-    originals, others = [], []
+    originals, remixes, seen = [], [], set()
     remix_words = ["remix", "phonk", "sped", "slowed", "bass", "edit", "mix"]
-    seen = set()
 
-    for item in data.get("results", []):
-        artist = item.get("artistName")
-        track = item.get("trackName")
-        if not artist or not track:
+    for item in r.get("results", []):
+        title = f"{item.get('artistName')} – {item.get('trackName')}"
+        if not item.get("artistName") or not item.get("trackName"):
             continue
-
-        title = f"{artist} – {track}"
-        key = title.lower()
-        if key in seen:
+        if title.lower() in seen:
             continue
-        seen.add(key)
+        seen.add(title.lower())
 
-        yt_query = f"{artist} {track}"
-
-        if len(originals) < 3 and not any(w in key for w in remix_words):
-            originals.append((title, yt_query))
+        q = f"{item['artistName']} {item['trackName']}"
+        if len(originals) < 3 and not any(w in title.lower() for w in remix_words):
+            originals.append((title, q))
         else:
-            others.append((title, yt_query))
+            remixes.append((title, q))
 
-    while len(originals) < 3 and others:
-        originals.append(others.pop(0))
+    return (originals + remixes)[:10]
 
-    return (originals + others)[:10]
-
-# ================= DOWNLOAD (MP3 + ПЕРЕМОТКА) =================
-def download_audio(chat_id, query):
+# ================= DOWNLOAD =================
+def download_mp3(chat_id, query):
     try:
         for f in os.listdir(DOWNLOAD_DIR):
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
-        subprocess.run(
-            [
-                "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
-                "--audio-quality", "0",
-                "--no-playlist",
-                "--no-warnings",
-                "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-                f"ytsearch1:{query} official audio"
-            ],
-            check=True,
-            timeout=60
-        )
+        # YouTube → якщо не вийшло, SoundCloud
+        for source in [f"ytsearch1:{query} official audio", f"scsearch1:{query}"]:
+            try:
+                subprocess.run(
+                    [
+                        "yt-dlp",
+                        "-x",
+                        "--audio-format", "mp3",
+                        "--audio-quality", "0",
+                        "--no-playlist",
+                        "-o", os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
+                        source
+                    ],
+                    check=True,
+                    timeout=60
+                )
+                break
+            except:
+                continue
 
         files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith(".mp3")]
         if not files:
-            bot.send_message(chat_id, "❌ Не вдалося завантажити mp3")
+            bot.send_message(chat_id, "❌ Не вдалося завантажити")
             return
 
-        path = os.path.join(DOWNLOAD_DIR, files[0])
-        with open(path, "rb") as audio:
-            bot.send_audio(chat_id, audio)
-            os.remove(path)
+        with open(os.path.join(DOWNLOAD_DIR, files[0]), "rb") as audio:bot.send_audio(chat_id, audio)
 
-    except Exception as e:
-        print("DOWNLOAD ERROR:", e)
-        bot.send_message(chat_id, "❌ Помилка при завантаженні")
+        os.remove(os.path.join(DOWNLOAD_DIR, files[0]))
+
+    finally:
+        active_downloads.discard(chat_id)
 
 # ================= TEXT =================
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     chat_id = message.chat.id
-    text = message.text.strip()
-
-    if chat_id in active_users:
-        bot.send_message(chat_id, "⏳ Зачекай…")
-        return
-
-    active_users.add(chat_id)
     register_user(chat_id)
     bot.send_message(chat_id, "🔍 Шукаю…")
 
-    try:
-        results = search_music(text)
-        if not results:
-            bot.send_message(chat_id, "❌ Нічого не знайшов")
-            return
+    results = search_music(message.text)
+    if not results:
+        bot.send_message(chat_id, "❌ Нічого не знайшов")
+        return
 
-        user_results[chat_id] = results
+    user_results[chat_id] = results
+    kb = InlineKeyboardMarkup(row_width=2)
 
-        kb = InlineKeyboardMarkup(row_width=1)
-        for i, (title, _) in enumerate(results):
-            icon = "🎵" if i < 3 else "🔥"
-            kb.add(
-                InlineKeyboardButton(
-                    text=f"{icon} {title[:60]}",
-                    callback_data=str(i)
-                )
-            )
-
-        bot.send_photo(
-            chat_id,
-            random.choice(PHOTOS),
-            caption="🎶 Обери трек:",
-            reply_markup=kb
+    for i, (title, _) in enumerate(results):
+        icon = "🎵" if i < 3 else "🔥"
+        kb.add(
+            InlineKeyboardButton(f"{icon} {title[:40]}", callback_data=f"dl_{i}"),
+            InlineKeyboardButton("🎧 Швидко", callback_data=f"fast_{i}")
         )
 
-    finally:
-        active_users.discard(chat_id)
+    bot.send_photo(chat_id, random.choice(PHOTOS), "🎶 Обери:", reply_markup=kb)
 
 # ================= CALLBACK =================
 @bot.callback_query_handler(func=lambda c: True)
 def callback(c):
     chat_id = c.message.chat.id
-
     if chat_id not in user_results:
         bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
         return
 
-    try:
-        idx = int(c.data)
-        _, query = user_results[chat_id][idx]
-    except:
-        bot.answer_callback_query(c.id, "⏳ Спробуй ще раз")
+    action, idx = c.data.split("_")
+    title, query = user_results[chat_id][int(idx)]
+
+    if action == "fast":
+        bot.answer_callback_query(c.id)
+        bot.send_message(chat_id, f"🎧 {title}\n🔗 https://www.youtube.com/results?search_query={query.replace(' ', '+')}")
         return
 
-    bot.answer_callback_query(c.id, "⏳ Завантажую…")
-    download_audio(chat_id, query)
+    if chat_id in active_downloads:
+        bot.answer_callback_query(c.id, "⏳ Уже завантажую")
+        return
+
+    active_downloads.add(chat_id)
+    bot.answer_callback_query(c.id, "📥 Завантажую MP3…")
+    download_mp3(chat_id, query)
     user_results.pop(chat_id, None)
 
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
