@@ -135,7 +135,8 @@ def download_audio(chat_id, query):
 
         path = os.path.join(DOWNLOAD_DIR, files[0])
         with open(path, "rb") as audio:
-            bot.send_audio(chat_id, audio)os.remove(path)
+            bot.send_audio(chat_id, audio)
+            os.remove(path)
 
     except Exception as e:
         print("DOWNLOAD ERROR:", e)
@@ -206,6 +207,7 @@ def callback(c):
 # ================= RUN =================
 print("BOT STARTED — FINAL STABLE")
 bot.infinity_polling(skip_pending=True)
+
 
 
 
